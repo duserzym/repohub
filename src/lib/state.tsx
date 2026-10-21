@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { clearToken, loadToken, saveToken, DEFAULT_CLIENT_ID } from "./auth";
 import { DEFAULT_CATEGORIES } from "./categories";
+import { DEFAULT_PALETTE } from "./themes";
 import { kvGet, kvSet } from "./storage";
 import type { Category, Settings, Team } from "./types";
 
@@ -12,6 +13,7 @@ export const DEFAULT_SETTINGS: Settings = {
   maxRepos: 100,
   menuBarStats: ["issues", "prs", "ci"],
   theme: "system",
+  palette: DEFAULT_PALETTE,
   clientId: DEFAULT_CLIENT_ID,
   sort: "pushed",
   autoUpdate: true,

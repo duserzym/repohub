@@ -345,6 +345,27 @@ h1 { font-weight: 650; letter-spacing: -0.02em; }
 .pill.overdue { background: color-mix(in srgb, var(--status-warning) 20%, transparent); color: var(--warn); }
 .pill.prs, .pill.stale-pr { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
 
+/* ---------------------------------------------------------------- themes */
+.swatch { flex: none; display: block; color: var(--fg); }
+.theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+.theme-opt { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 11px; border: 1px solid var(--line-2); background: var(--glass-strong); cursor: pointer; text-align: left; color: var(--fg); }
+.theme-opt > span { display: flex; flex-direction: column; min-width: 0; }
+.theme-opt strong { font-size: 13px; font-weight: 600; }
+.theme-opt:hover { border-color: var(--muted); }
+.theme-opt.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.theme-opt.on svg:last-child { color: var(--accent); }
+.theme-quick { position: relative; }
+.theme-btn { width: 100%; border: 0; background: transparent; cursor: pointer; font: inherit; text-align: left; }
+.theme-pop { position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); z-index: 30; padding: 10px; border-radius: 12px; display: flex; flex-direction: column; gap: 8px;
+  background: var(--glass-strong); border: 1px solid var(--glass-edge); box-shadow: var(--shadow-hover), 0 0 0 1px var(--line); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); }
+.theme-pop .seg { align-self: stretch; display: flex; }
+.theme-pop .seg button { flex: 1; }
+.theme-pop-list { display: flex; flex-direction: column; gap: 1px; max-height: 320px; overflow-y: auto; }
+.theme-row { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border: 0; border-radius: 7px; background: transparent; color: var(--fg); cursor: pointer; font: inherit; font-size: 12.5px; text-align: left; }
+.theme-row:hover { background: var(--bg-2); }
+.theme-row.on { font-weight: 600; }
+.theme-row.on svg:last-child { color: var(--accent); }
+
 /* ---------------------------------------------------------------- updates */
 .update-card { display: flex; flex-direction: column; gap: 6px; margin: 8px 2px; padding: 10px 12px; border-radius: 12px; background: var(--glass-strong); border: 1px solid var(--glass-edge); box-shadow: var(--shadow), 0 0 0 1px var(--line); font-size: 13px; }
 .update-card.ready { box-shadow: var(--shadow), 0 0 0 1px color-mix(in srgb, var(--status-good) 45%, transparent); }

@@ -28,6 +28,7 @@ A lightweight, fast dashboard, with a quiet "Ivory & Brass" glass theme (and a "
   - CI health, overall and per category
   
   Every chart has a hover tooltip and a table view. Data colors use a colorblind-validated palette.
+- **Ten color themes, switchable in the app.** Pick a theme from the sidebar's theme menu or Settings → Appearance, and choose Auto, Light or Dark. Changes apply instantly, are remembered between launches, and carry over to the menu-bar popover. Themes: Ivory & Brass, Porcelain & Sapphire, Sage & Pewter, Sandstone & Terracotta, Graphite & Platinum, Plum & Smoke, Glacier & Slate, Basalt & Copper, Linen & Olive, and Rosé Quartz & Taupe.
 - **Status you can read at a glance.** Everywhere in the app: ✓ green means passing, ◷ amber means running, ✕ red means failing, and – gray means no CI. Status is never shown by color alone.
 - **Clear navigation.** Overview, category and repo views. Each repo has tabs for Issues, Pull requests, Milestones, Commits, Actions and Releases. There's also a "Needs attention" feed (failing CI, overdue milestones, PR backlog).
 - **Categories you can edit.** Ships with Geochemistry and Geophysics. You can add, rename, recolor, reorder and delete categories. Repos are sorted automatically by keywords in their name, description and topics, and picking a category on a card always overrides that.
@@ -91,6 +92,7 @@ src/                    React UI (Vite, TypeScript, no UI framework)
   lib/icons.ts          repo icon discovery and caching
   lib/state.tsx         settings, categories, assignments, tracked repos, teams
   lib/updater.ts        update scheduler + inline update state
+  lib/themes.ts         the 10 color themes and how their tokens are derived
   components/charts.tsx SVG charts (stacked columns, heatmap, bars, donut, timeline, status meter)
   views/                Dashboard, RepoDetail, Discover, Teams, Settings, TrayPopover
 src-tauri/

@@ -77,6 +77,8 @@ export interface Settings {
   maxRepos: number;
   menuBarStats: MenuBarStat[];
   theme: "system" | "light" | "dark";
+  /** Color theme id, see lib/themes.ts */
+  palette: string;
   clientId: string;
   sort: "pushed" | "name" | "progress" | "issues" | "stars";
   autoUpdate: boolean;

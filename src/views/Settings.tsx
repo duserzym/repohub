@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Icon } from "../components/Icon";
+import { ModeSwitch, ThemeGrid } from "../components/ThemePicker";
 import { clearIconMemory } from "../lib/icons";
 import { checkForUpdates, downloadUpdate, installUpdate, updatesSupported, useUpdateStatus } from "../lib/updater";
 import { isTauri } from "../lib/platform";
@@ -86,12 +87,15 @@ export function Settings() {
 
       <section className="card panel form">
         <h3>Appearance</h3>
-        <label className="field row between">
-          <span>Theme</span>
-          <select className="input" value={settings.theme} onChange={(e) => set({ theme: e.target.value as S["theme"] })}>
-            <option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option>
-          </select>
-        </label>
+        <div className="field row between">
+          <span>Mode</span>
+          <ModeSwitch />
+        </div>
+        <div className="field">
+          <span>Color theme</span>
+          <ThemeGrid />
+        </div>
+        <p className="small muted">Changes apply instantly. Status colors and chart category colors stay the same in every theme.</p>
       </section>
 
       <section className="card panel form">

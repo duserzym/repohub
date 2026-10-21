@@ -5,6 +5,7 @@ import { href, type Route } from "../lib/router";
 import { useApp } from "../lib/state";
 import { CategoryManager } from "./CategoryManager";
 import { Icon } from "./Icon";
+import { ThemeQuickMenu } from "./ThemePicker";
 import { UpdateBanner } from "./UpdateBanner";
 
 export function Sidebar({ route, open, onClose }: { route: Route; open: boolean; onClose(): void }) {
@@ -62,6 +63,7 @@ export function Sidebar({ route, open, onClose }: { route: Route; open: boolean;
 
         <div className="grow" />
         <UpdateBanner />
+        <ThemeQuickMenu />
         <a className={`nav${is("settings") ? " active" : ""}`} href={href.settings()}>
           <Icon name="settings" /> Settings
         </a>

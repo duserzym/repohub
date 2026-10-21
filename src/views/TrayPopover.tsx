@@ -3,6 +3,7 @@ import { Icon } from "../components/Icon";
 import { ago } from "../lib/format";
 import { invoke, isTauri, listen } from "../lib/platform";
 import { readyUpdateFromNative, type UpdateInfo } from "../lib/updater";
+import { applyMode, applyPalette } from "../lib/themes";
 import { summarize, type Summary } from "../lib/summary";
 import { demoRepos } from "../lib/demo";
 import { DEFAULT_CATEGORIES } from "../lib/categories";
@@ -29,6 +30,10 @@ export function TrayPopover() {
     const offs: (() => void)[] = [];
     listen<Payload>("summary-updated", (s) => s.extra && setP(s.extra)).then((f) => offs.push(f));
     listen("popover-shown", () => tick((n) => n + 1)).then((f) => offs.push(f));
+    listen<{ palette: string; theme: "system" | "light" | "dark" }>("appearance-changed", (a) => {
+      applyPalette(a.palette);
+      applyMode(a.theme);
+    }).then((f) => offs.push(f));
     const t = setInterval(() => tick((n) => n + 1), 30_000);
     return () => {
       offs.forEach((f) => f());

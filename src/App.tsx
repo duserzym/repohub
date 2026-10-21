@@ -3,7 +3,8 @@ import { Spinner } from "./components/bits";
 import { Icon } from "./components/Icon";
 import { Login } from "./components/Login";
 import { Sidebar } from "./components/Sidebar";
-import { listen } from "./lib/platform";
+import { isTauri, listen } from "./lib/platform";
+import { applyMode, applyPalette } from "./lib/themes";
 import { useTraySync } from "./lib/queries";
 import { useUpdateScheduler } from "./lib/updater";
 import { navigate, useRoute } from "./lib/router";
@@ -16,12 +17,14 @@ import { Teams } from "./views/Teams";
 import { TrayPopover } from "./views/TrayPopover";
 
 function useTheme() {
-  const { settings } = useApp();
+  const { settings, ready } = useApp();
   useEffect(() => {
-    const el = document.documentElement;
-    if (settings.theme === "system") el.removeAttribute("data-theme");
-    else el.setAttribute("data-theme", settings.theme);
-  }, [settings.theme]);
+    if (!ready) return;
+    applyPalette(settings.palette);
+    applyMode(settings.theme);
+    // Keep the menu-bar popover window in sync.
+    if (isTauri) void import("@tauri-apps/api/event").then(({ emit }) => emit("appearance-changed", { palette: settings.palette, theme: settings.theme }));
+  }, [settings.palette, settings.theme, ready]);
 }
 
 function Shell() {
