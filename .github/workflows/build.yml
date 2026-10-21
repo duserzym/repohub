@@ -21,6 +21,8 @@ jobs:
 
   desktop:
     needs: check
+    # Installers are built for version tags (and manual runs), not every push.
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
@@ -54,11 +56,16 @@ jobs:
           args: ${{ matrix.args }} --config src-tauri/tauri.release.conf.json
           includeUpdaterJson: true
           prerelease: ${{ contains(github.ref_name, '-beta') }}
-          # Tag pushes (v*) create a draft GitHub Release with installers attached.
+          # Tag pushes (v*) publish a GitHub Release with the .dmg / Windows installer,
+          # the signed update bundles and latest.json (what in-app updates read).
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           releaseName: "RepoHub ${{ github.ref_name }}"
-          releaseDraft: true
-      - name: Upload installers
+          releaseBody: |
+            Download **RepoHub_*_universal.dmg** for macOS (Apple Silicon and Intel) or the **.msi / -setup.exe** for Windows.
+
+            First launch on macOS: open the app once, then System Settings → Privacy & Security → **Open Anyway** (the build isn't notarized). Later versions install from inside RepoHub.
+          releaseDraft: false
+      - name: Upload installers (manual runs)
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: actions/upload-artifact@v4
         with:

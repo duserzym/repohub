@@ -39,30 +39,9 @@ if ! command -v cargo >/dev/null 2>&1; then
 fi
 ok "Rust $(rustc --version | awk '{print $2}')"
 
-# 4. GitHub sign-in (one-time): the OAuth App client ID is built into the app
-CLIENT_ID="$(grep -s '^VITE_GITHUB_CLIENT_ID=' .env | cut -d= -f2- || true)"
-if [ -z "$CLIENT_ID" ]; then
-  bold "One-time GitHub setup (about 1 minute)"
-  cat <<'TXT'
-RepoHub signs in through your browser. GitHub needs to know the app once:
-
-  1. On the page that opens, fill in:
-       Application name:          RepoHub
-       Homepage URL:              https://github.com/duserzym/repohub
-       Authorization callback URL: https://github.com/duserzym/repohub
-  2. Click "Register application".
-  3. Tick "Enable Device Flow" and click "Update application".
-  4. Copy the "Client ID" (starts with Ov23… or Iv1…) and paste it below.
-     Do NOT generate a client secret, because it isn't needed.
-TXT
-  open "https://github.com/settings/applications/new"
-  read -r -p $'\nClient ID (or press Return to skip and use demo data only): ' CLIENT_ID
-  CLIENT_ID="$(echo "$CLIENT_ID" | tr -d '[:space:]')"
-  if [ -n "$CLIENT_ID" ]; then
-    echo "VITE_GITHUB_CLIENT_ID=$CLIENT_ID" > .env
-    ok "Saved to .env (not committed to git)"
-  fi
-fi
+# 4. GitHub sign-in is built in (RepoHub's OAuth App client ID ships with the app),
+#    so there is nothing to set up here. To use your own OAuth App instead, put
+#    VITE_GITHUB_CLIENT_ID=... in a .env file next to this script.
 
 # 5. Build
 bold "Installing dependencies…"

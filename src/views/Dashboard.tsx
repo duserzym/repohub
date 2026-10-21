@@ -6,7 +6,7 @@ import { Insights } from "../components/Insights";
 import { RepoCard, RepoRow } from "../components/RepoCard";
 import { categoryOf, UNCATEGORIZED, UNCATEGORIZED_COLOR } from "../lib/categories";
 import { ago, commits30, repoProgress } from "../lib/format";
-import { useRepos } from "../lib/queries";
+import { useLoadProgress, useRepos } from "../lib/queries";
 import { href } from "../lib/router";
 import { useApp } from "../lib/state";
 import { summarize } from "../lib/summary";
@@ -32,6 +32,7 @@ export function Dashboard({ category }: { category: string | null }) {
   const app = useApp();
   const { categories, assignments, pinned, settings, update } = app;
   const { data, isLoading, isFetching, error, summary } = useRepos();
+  const progress = useLoadProgress();
   const qc = useQueryClient();
   const [filter, setFilter] = useState("");
   const [mode, setMode] = useState<"grid" | "list">(() => pref("view-mode", "grid") as "grid" | "list");
@@ -57,7 +58,7 @@ export function Dashboard({ category }: { category: string | null }) {
 
   const s = useMemo(() => (category ? summarize(repos, categories, assignments) : summary), [category, repos, categories, assignments, summary]);
 
-  if (isLoading) return <div className="center-fill"><Spinner /> <span className="muted">Loading your repositories…</span></div>;
+  if (isLoading && !data) return <div className="center-fill"><Spinner /> <span className="muted">Connecting to GitHub…</span></div>;
   if (error && !data)
     return (
       <Empty icon="alert" title="Couldn't load repositories">
@@ -89,7 +90,13 @@ export function Dashboard({ category }: { category: string | null }) {
             {title}
           </h1>
           <div className="muted small">
-            {data && <>Synced {ago(data.fetchedAt)} · auto-refresh every {settings.pollMinutes} min · {data.rateLimit.remaining}/{data.rateLimit.limit} API points left</>}
+            {progress ? (
+              <span className="row gap"><span className="spinner" /> Loading {progress.loaded} of {progress.total} repositories…</span>
+            ) : isFetching && data ? (
+              <span className="row gap"><span className="spinner" /> Refreshing…</span>
+            ) : (
+              data && <>Synced {ago(data.fetchedAt)} · auto-refresh every {settings.pollMinutes} min · {data.rateLimit.remaining}/{data.rateLimit.limit} API points left</>
+            )}
           </div>
         </div>
         <div className="toolbar">

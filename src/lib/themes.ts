@@ -12,6 +12,10 @@ export interface PaletteMode {
   accent: string;
   accent2: string;
   blob: string;
+  /** optional second glow color (defaults to a mix of accent and background) */
+  blob2?: string;
+  /** glow strength multiplier for brighter themes (default 1) */
+  glow?: number;
 }
 export interface Palette {
   id: string;
@@ -22,12 +26,15 @@ export interface Palette {
 }
 
 export const PALETTES: Palette[] = [
-  { id: "ivory-brass", name: "Ivory & Brass", mood: "Warm ivory, antique brass",
-    light: { bg: "#f3efe8", ink: "#1d1b18", muted: "#80786b", accent: "#846430", accent2: "#a9864a", blob: "#768ca4" },
-    dark: { bg: "#101115", ink: "#ece7de", muted: "#8e877b", accent: "#d4b47e", accent2: "#e6cc9c", blob: "#546a96" } },
   { id: "porcelain-sapphire", name: "Porcelain & Sapphire", mood: "Cool white, quiet deep blue",
     light: { bg: "#f1f3f7", ink: "#151a24", muted: "#6c7486", accent: "#2f4a7a", accent2: "#4a679a", blob: "#b7a98e" },
     dark: { bg: "#0c111d", ink: "#e6eaf2", muted: "#8590a6", accent: "#93aede", accent2: "#b4c7ea", blob: "#3d4e7a" } },
+  { id: "lagoon", name: "Lagoon", mood: "Bright teal, ocean blue, sea-glass green",
+    light: { bg: "#ecf8f6", ink: "#0f1d20", muted: "#5a7378", accent: "#0a7d84", accent2: "#14b8a6", blob: "#3b82f6", blob2: "#22c55e", glow: 1.9 },
+    dark: { bg: "#081419", ink: "#e4f3f2", muted: "#7f9a9d", accent: "#2ed3bf", accent2: "#7ce8db", blob: "#2563eb", blob2: "#10b981", glow: 1.5 } },
+  { id: "ivory-brass", name: "Ivory & Brass", mood: "Warm ivory, antique brass",
+    light: { bg: "#f3efe8", ink: "#1d1b18", muted: "#80786b", accent: "#846430", accent2: "#a9864a", blob: "#768ca4" },
+    dark: { bg: "#101115", ink: "#ece7de", muted: "#8e877b", accent: "#d4b47e", accent2: "#e6cc9c", blob: "#546a96" } },
   { id: "sage-pewter", name: "Sage & Pewter", mood: "Soft green on grey stone",
     light: { bg: "#eef1ec", ink: "#171c18", muted: "#6f7a71", accent: "#4f6e57", accent2: "#6e8e76", blob: "#a3a8ae" },
     dark: { bg: "#0e1310", ink: "#e5ebe6", muted: "#859087", accent: "#9cc2a5", accent2: "#bcd8c2", blob: "#4b5a52" } },
@@ -54,7 +61,7 @@ export const PALETTES: Palette[] = [
     dark: { bg: "#151011", ink: "#efe5e6", muted: "#958689", accent: "#e3a7ae", accent2: "#eec3c8", blob: "#5a3c41" } },
 ];
 
-export const DEFAULT_PALETTE = PALETTES[0].id;
+export const DEFAULT_PALETTE = "porcelain-sapphire";
 export const paletteById = (id: string) => PALETTES.find((p) => p.id === id) ?? PALETTES[0];
 
 /* ----------------------------------------------------------- color math */
@@ -85,9 +92,9 @@ function tokens(p: PaletteMode, dark: boolean): Record<string, string> {
     "--accent": p.accent,
     "--accent-2": p.accent2,
     "--accent-fg": dark ? mix(p.bg, "#000000", 0.2) : "#fffaf3",
-    "--blob-1": alpha(p.accent, dark ? 0.13 : 0.2),
-    "--blob-2": alpha(p.blob, dark ? 0.2 : 0.2),
-    "--blob-3": alpha(mix(p.accent, p.bg, 0.5), dark ? 0.1 : 0.22),
+    "--blob-1": alpha(p.accent2, Math.min(0.6, (dark ? 0.13 : 0.2) * (p.glow ?? 1))),
+    "--blob-2": alpha(p.blob, Math.min(0.6, 0.2 * (p.glow ?? 1))),
+    "--blob-3": alpha(p.blob2 ?? mix(p.accent, p.bg, 0.5), Math.min(0.6, (dark ? 0.1 : 0.22) * (p.glow ?? 1))),
     "--series-1": p.accent,
   };
   if (dark) {
@@ -165,8 +172,7 @@ export function applyMode(mode: "system" | "light" | "dark") {
 /** Called before first render so the last-used look appears without a flash. */
 export function applyCachedAppearance() {
   try {
-    const id = localStorage.getItem("palette-cache");
-    if (id) applyPalette(id);
+    applyPalette(localStorage.getItem("palette-cache") ?? DEFAULT_PALETTE);
     const mode = localStorage.getItem("mode-cache") as "system" | "light" | "dark" | null;
     if (mode) applyMode(mode);
   } catch {

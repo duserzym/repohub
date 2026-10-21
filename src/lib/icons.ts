@@ -44,10 +44,32 @@ export function resolveIcon(r: Repo, token: string | null): Promise<string | nul
   return p;
 }
 
+// At most 4 icon downloads at a time, so icons never compete with the repo list.
+let active = 0;
+const waiting: (() => void)[] = [];
+async function slot<T>(fn: () => Promise<T>): Promise<T> {
+  if (active >= 4) await new Promise<void>((res) => waiting.push(res));
+  active++;
+  try {
+    return await fn();
+  } finally {
+    active--;
+    waiting.shift()?.();
+  }
+}
+
 async function load(r: Repo, token: string | null, key: string): Promise<string | null> {
   const cached = await kvGet<Cached>(key, FILE);
   if (cached && Date.now() - cached.at < TTL) return cached.url;
+  if (!r.iconPaths.length) {
+    const url = r.socialImage ?? null;
+    await kvSet(key, { url, at: Date.now() } satisfies Cached, FILE);
+    return url;
+  }
+  return slot(() => download(r, token, key));
+}
 
+async function download(r: Repo, token: string | null, key: string): Promise<string | null> {
   let url: string | null = null;
   for (const path of r.iconPaths) {
     url = await fetchFile(r.nameWithOwner, path, token).catch(() => null);

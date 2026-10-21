@@ -17,14 +17,31 @@ function headers(token: string | null, accept = "application/vnd.github+json"): 
   return h;
 }
 
-export async function gql<T>(token: string, query: string, variables: Record<string, unknown> = {}): Promise<T> {
-  const res = await httpFetch(`${API}/graphql`, {
-    method: "POST",
-    headers: { ...headers(token), "Content-Type": "application/json" },
-    body: JSON.stringify({ query, variables }),
-  });
+/** Thrown when GitHub took too long or answered 502/504 — retry with a smaller request. */
+export class SlowError extends Error {}
+
+export async function gql<T>(token: string, query: string, variables: Record<string, unknown> = {}, timeoutMs = 30_000): Promise<T> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), timeoutMs);
+  let res: Response;
+  try {
+    res = await httpFetch(`${API}/graphql`, {
+      method: "POST",
+      headers: { ...headers(token), "Content-Type": "application/json" },
+      body: JSON.stringify({ query, variables }),
+      signal: ctl.signal,
+    });
+  } catch (e) {
+    if (ctl.signal.aborted) throw new SlowError("GitHub took too long to respond");
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
   if (res.status === 401) throw new AuthError("GitHub token is invalid or expired");
+  if (res.status === 502 || res.status === 504) throw new SlowError(`GitHub ${res.status}`);
   const json = await res.json();
+  if (json.errors && !json.data && json.errors.some((e: { message: string }) => /timeout|timed out|something went wrong/i.test(e.message)))
+    throw new SlowError(json.errors[0].message);
   // Partial errors (e.g. one tracked repo deleted) still return usable data.
   if (json.errors && !json.data) throw new Error(json.errors.map((e: { message: string }) => e.message).join("; "));
   if (json.errors) console.warn("GraphQL partial errors", json.errors);
@@ -51,7 +68,9 @@ export async function rest<T>(token: string | null, path: string, accept?: strin
 // ---------------------------------------------------------------------------
 
 export const WEEKS = 12;
-const ICON_DIRS = ["", ".github", "assets", "docs", "images", "public"] as const;
+// Only the most common places for a logo — each extra folder is another lookup per repo.
+const ICON_DIRS = ["", ".github", "assets"] as const;
+const WEEK_MS = 7 * 864e5;
 const treeAlias = (dir: string) => `tree_${dir.replace(/[^a-z]/gi, "") || "root"}`;
 
 const REPO_FIELDS = `
@@ -74,19 +93,36 @@ fragment RepoFields on Repository {
   defaultBranchRef { name target { ... on Commit {
     oid committedDate messageHeadline
     statusCheckRollup { state }
-    ${Array.from({ length: WEEKS }, (_, i) => `w${i}: history(first: 1, since: $w${i}, until: $w${i + 1}) { totalCount }`).join("\n    ")}
+    recent: history(first: 100, since: $since) { totalCount nodes { committedDate } }
   } } }
   ${ICON_DIRS.map((d) => `${treeAlias(d)}: object(expression: "HEAD:${d}") { ... on Tree { entries { name type } } }`).join("\n  ")}
 }`;
 
-const weekVarDefs = Array.from({ length: WEEKS + 1 }, (_, i) => `$w${i}: GitTimestamp!`).join(", ");
+const weekVarDefs = "$since: GitTimestamp!";
 
 function weekVars(): Record<string, string> {
+  return { since: new Date(Date.now() - WEEKS * WEEK_MS).toISOString() };
+}
+
+/** Bucket recent commit dates into weekly counts, oldest → newest. */
+function weeklyCounts(recent: { totalCount: number; nodes: { committedDate: string }[] } | undefined): number[] {
+  const out = new Array(WEEKS).fill(0);
+  if (!recent) return out;
   const now = Date.now();
-  const week = 7 * 864e5;
-  const v: Record<string, string> = {};
-  for (let i = 0; i <= WEEKS; i++) v[`w${i}`] = new Date(now - (WEEKS - i) * week).toISOString();
-  return v;
+  for (const n of recent.nodes) {
+    const age = Math.floor((now - new Date(n.committedDate).getTime()) / WEEK_MS);
+    if (age >= 0 && age < WEEKS) out[WEEKS - 1 - age]++;
+  }
+  // Very busy repos: only the newest 100 commits come back; scale the rest so the total matches.
+  const seen = recent.nodes.length;
+  if (recent.totalCount > seen && seen > 0) {
+    const oldest = recent.nodes[seen - 1].committedDate;
+    const covered = Math.min(WEEKS, Math.ceil((now - new Date(oldest).getTime()) / WEEK_MS));
+    const missing = recent.totalCount - seen;
+    const rest = WEEKS - covered;
+    if (rest > 0) for (let i = 0; i < rest; i++) out[i] += Math.round(missing / rest);
+  }
+  return out;
 }
 
 const LIST_QUERY = `
@@ -107,7 +143,7 @@ ${REPO_FIELDS}`;
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function mapRepo(n: any, tracked = false): Repo {
   const c = n.defaultBranchRef?.target;
-  const weekly = c ? Array.from({ length: WEEKS }, (_, i) => c[`w${i}`]?.totalCount ?? 0) : new Array(WEEKS).fill(0);
+  const weekly = weeklyCounts(c?.recent);
   const files: { path: string; dir: string; name: string }[] = [];
   for (const d of ICON_DIRS) {
     for (const e of n[treeAlias(d)]?.entries ?? []) {
@@ -182,7 +218,15 @@ export function rankIconFiles(files: { path: string; dir: string; name: string }
   return scored.slice(0, 3).map((x) => x.path);
 }
 
+export interface SyncStats {
+  ms: number;
+  requests: number;
+  slowRetries: number;
+  pageSize: number;
+}
+
 export interface RepoListResult {
+  stats?: SyncStats;
   viewer: Viewer;
   repos: Repo[];
   totalCount: number;
@@ -190,41 +234,66 @@ export interface RepoListResult {
   fetchedAt: string;
 }
 
-export async function fetchRepos(token: string, settings: Settings, trackedNames: string[]): Promise<RepoListResult> {
+/**
+ * Loads repositories page by page. `onProgress` receives each partial result so
+ * the dashboard can render the first repos within a second or two.
+ * Pages start at 20 repos and shrink automatically if GitHub is slow.
+ */
+export async function fetchRepos(
+  token: string,
+  settings: Settings,
+  trackedNames: string[],
+  onProgress?: (partial: RepoListResult) => void,
+): Promise<RepoListResult> {
   const repos: Repo[] = [];
   let cursor: string | null = null;
   let viewer: Viewer | null = null;
   let rateLimit: RateLimit = { remaining: 0, limit: 0, resetAt: "" };
   let totalCount = 0;
   const vars = weekVars();
-  const pageSize = 25; // keeps each GraphQL request well under GitHub's timeout
+  let pageSize = 20;
+  const t0 = performance.now();
+  const stats: SyncStats = { ms: 0, requests: 0, slowRetries: 0, pageSize };
+  const result = (): RepoListResult => ({
+    stats: { ...stats, ms: Math.round(performance.now() - t0), pageSize },
+    viewer: viewer!,
+    repos: settings.includeArchived ? [...repos] : repos.filter((r) => !r.isArchived || r.tracked),
+    totalCount,
+    rateLimit,
+    fetchedAt: new Date().toISOString(),
+  });
   do {
-    const data: any = await gql(token, LIST_QUERY, {
-      ...vars,
-      cursor,
-      first: Math.min(pageSize, settings.maxRepos - repos.length),
-      aff: settings.affiliations,
-      isFork: settings.includeForks ? null : false,
-    });
+    let data: any;
+    stats.requests++;
+    try {
+      data = await gql(token, LIST_QUERY, {
+        ...vars,
+        cursor,
+        first: Math.min(pageSize, settings.maxRepos - repos.length),
+        aff: settings.affiliations,
+        isFork: settings.includeForks ? null : false,
+      });
+    } catch (e) {
+      if (e instanceof SlowError && pageSize > 5) {
+        stats.slowRetries++;
+        pageSize = Math.max(5, Math.floor(pageSize / 2)); // retry the same page in smaller pieces
+        continue;
+      }
+      throw e;
+    }
     viewer = { login: data.viewer.login, name: data.viewer.name, avatarUrl: data.viewer.avatarUrl };
     rateLimit = data.rateLimit;
     const conn = data.viewer.repositories;
-    totalCount = conn.totalCount;
+    totalCount = Math.min(conn.totalCount, settings.maxRepos);
     repos.push(...conn.nodes.map((n: any) => mapRepo(n)));
     cursor = conn.pageInfo.hasNextPage ? conn.pageInfo.endCursor : null;
+    if (cursor) onProgress?.(result());
   } while (cursor && repos.length < settings.maxRepos);
 
   const own = new Set(repos.map((r) => r.nameWithOwner.toLowerCase()));
   const extra = trackedNames.filter((n) => !own.has(n.toLowerCase()));
   if (extra.length) repos.push(...(await fetchTracked(token, extra, vars)));
-
-  return {
-    viewer: viewer!,
-    repos: settings.includeArchived ? repos : repos.filter((r) => !r.isArchived || r.tracked),
-    totalCount,
-    rateLimit,
-    fetchedAt: new Date().toISOString(),
-  };
+  return result();
 }
 
 function trackedQuery(n: number) {
@@ -235,8 +304,8 @@ function trackedQuery(n: number) {
 
 async function fetchTracked(token: string, names: string[], vars: Record<string, string>): Promise<Repo[]> {
   const out: Repo[] = [];
-  for (let i = 0; i < names.length; i += 15) {
-    const chunk = names.slice(i, i + 15);
+  for (let i = 0; i < names.length; i += 10) {
+    const chunk = names.slice(i, i + 10);
     const v: Record<string, string> = { ...vars };
     chunk.forEach((full, j) => {
       const [o, n] = full.split("/");

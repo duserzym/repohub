@@ -5,7 +5,7 @@ import { ModeSwitch, ThemeGrid } from "../components/ThemePicker";
 import { clearIconMemory } from "../lib/icons";
 import { checkForUpdates, downloadUpdate, installUpdate, updatesSupported, useUpdateStatus } from "../lib/updater";
 import { isTauri } from "../lib/platform";
-import { useRepos } from "../lib/queries";
+import { clearRepoCache, useRepos } from "../lib/queries";
 import { DEFAULT_SETTINGS, useApp } from "../lib/state";
 import { menuBarTitle } from "../lib/summary";
 import type { MenuBarStat, Settings as S } from "../lib/types";
@@ -57,6 +57,12 @@ export function Settings() {
           <label className="check"><input type="checkbox" checked={settings.includeArchived} onChange={(e) => set({ includeArchived: e.target.checked })} /> Include archived</label>
         </div>
         {data && <p className="small muted">API budget: {data.rateLimit.remaining}/{data.rateLimit.limit} points, resets {new Date(data.rateLimit.resetAt).toLocaleTimeString()}.</p>}
+        {data?.stats && (
+          <p className="small muted">
+            Last sync: {data.repos.length} repos in {(data.stats.ms / 1000).toFixed(1)} s · {data.stats.requests} requests · {data.stats.pageSize} repos per request
+            {data.stats.slowRetries > 0 && ` · GitHub was slow ${data.stats.slowRetries}× (requests were split smaller)`}
+          </p>
+        )}
       </section>
 
       <section className="card panel form">
@@ -101,7 +107,7 @@ export function Settings() {
       <section className="card panel form">
         <h3>Account</h3>
         <div className="row gap wrap">
-          {token && <button className="btn" onClick={() => { void setToken(null); qc.clear(); }}><Icon name="logout" /> Sign out</button>}
+          {token && <button className="btn" onClick={() => { void clearRepoCache(); void setToken(null); qc.clear(); }}><Icon name="logout" /> Sign out</button>}
           {demo && <button className="btn" onClick={() => { setDemo(false); qc.clear(); }}>Exit demo mode</button>}
           <button className="btn ghost" onClick={() => { clearIconMemory(); qc.invalidateQueries(); }}>Reload icons & data</button>
           <button className="btn ghost" onClick={() => update("settings", { ...DEFAULT_SETTINGS, clientId: settings.clientId })}>Reset settings</button>

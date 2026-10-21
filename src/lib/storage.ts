@@ -78,8 +78,8 @@ export async function kvSet(key: string, value: unknown, file?: string) {
   }
 }
 
-export async function kvDelete(key: string) {
-  if (isTauri) return void (await store()).delete(key);
+export async function kvDelete(key: string, file?: string) {
+  if (isTauri) return void (await store(file)).delete(key);
   try {
     localStorage.removeItem(`kv:${key}`);
   } catch {

@@ -7,7 +7,9 @@ import { deleteSecret, getSecret, setSecret } from "./storage";
 
 export const TOKEN_KEY = "github-token";
 export const SCOPES = "repo read:org read:user";
-export const DEFAULT_CLIENT_ID = (import.meta.env.VITE_GITHUB_CLIENT_ID as string | undefined) ?? "";
+// Public OAuth App client ID for RepoHub (client IDs are not secret).
+// Override with VITE_GITHUB_CLIENT_ID for a fork or a different OAuth App.
+export const DEFAULT_CLIENT_ID = (import.meta.env.VITE_GITHUB_CLIENT_ID as string | undefined) || "Ov23liAaqYPNVsBbVVJb";
 
 export interface DeviceCode {
   device_code: string;

@@ -1,6 +1,6 @@
 # RepoHub
 
-A lightweight, fast dashboard, with a quiet "Ivory & Brass" glass theme (and a "Midnight & Brass" dark mode), for keeping track of GitHub projects. It runs on **macOS, Windows and iOS** from one codebase (Tauri 2 + React) and lives in the **menu bar / system tray** with live stats.
+A lightweight, fast dashboard, with a crisp "Porcelain & Sapphire" glass theme (light and dark), for keeping track of GitHub projects. It runs on **macOS, Windows and iOS** from one codebase (Tauri 2 + React) and lives in the **menu bar / system tray** with live stats.
 
 ![Dashboard](docs/screenshots/dash.png)
 
@@ -28,7 +28,7 @@ A lightweight, fast dashboard, with a quiet "Ivory & Brass" glass theme (and a "
   - CI health, overall and per category
   
   Every chart has a hover tooltip and a table view. Data colors use a colorblind-validated palette.
-- **Ten color themes, switchable in the app.** Pick a theme from the sidebar's theme menu or Settings → Appearance, and choose Auto, Light or Dark. Changes apply instantly, are remembered between launches, and carry over to the menu-bar popover. Themes: Ivory & Brass, Porcelain & Sapphire, Sage & Pewter, Sandstone & Terracotta, Graphite & Platinum, Plum & Smoke, Glacier & Slate, Basalt & Copper, Linen & Olive, and Rosé Quartz & Taupe.
+- **Eleven color themes, switchable in the app.** Pick a theme from the sidebar's theme menu or Settings → Appearance, and choose Auto, Light or Dark. Changes apply instantly, are remembered between launches, and carry over to the menu-bar popover. The default is **Porcelain & Sapphire** (cool white and a deep, quiet blue). The others: Lagoon, Ivory & Brass, Sage & Pewter, Sandstone & Terracotta, Graphite & Platinum, Plum & Smoke, Glacier & Slate, Basalt & Copper, Linen & Olive, and Rosé Quartz & Taupe.
 - **Status you can read at a glance.** Everywhere in the app: ✓ green means passing, ◷ amber means running, ✕ red means failing, and – gray means no CI. Status is never shown by color alone.
 - **Clear navigation.** Overview, category and repo views. Each repo has tabs for Issues, Pull requests, Milestones, Commits, Actions and Releases. There's also a "Needs attention" feed (failing CI, overdue milestones, PR backlog).
 - **Categories you can edit.** Ships with Geochemistry and Geophysics. You can add, rename, recolor, reorder and delete categories. Repos are sorted automatically by keywords in their name, description and topics, and picking a category on a card always overrides that.
@@ -44,9 +44,8 @@ A lightweight, fast dashboard, with a quiet "Ivory & Brass" glass theme (and a "
 Double-click **`Install RepoHub.command`** in this folder. It:
 
 1. checks for (and offers to install) the Command Line Tools, Node.js and Rust
-2. walks you through the one-time GitHub OAuth App setup, which needs just a client ID
-3. builds RepoHub and copies it to `/Applications`
-4. opens the app
+2. builds RepoHub and copies it to `/Applications`
+3. opens the app
 
 Run it again any time to rebuild from the latest code. If macOS blocks the file, right-click it and choose **Open**.
 
@@ -61,10 +60,12 @@ npm run dev            # UI only, in the browser (http://localhost:1420/?demo)
 npm run app:build      # installers in src-tauri/target/release/bundle
 ```
 
-### 1. Create a GitHub OAuth App (one time)
+### 1. GitHub OAuth App (already set up)
+
+RepoHub's OAuth App is registered under @duserzym (Client ID `Ov23liAaqYPNVsBbVVJb`, Device Flow on, non-expiring tokens), and that ID is built into the app, so sign-in works out of the box. Only follow the steps below if you fork RepoHub and want your own app:
 
 1. GitHub → **Settings → Developer settings → OAuth Apps → New OAuth App**.
-2. Homepage URL: `https://github.com/duserzym/repohub`. Callback URL: the same URL (the device flow doesn't use it).
+2. Homepage URL: `https://duserzym.github.io/repohub/`. Callback URL: the same URL (the device flow doesn't use it).
 3. After creating it, tick **Enable Device Flow** and copy the **Client ID**. Do not generate a client secret.
 4. Put it in `.env` as `VITE_GITHUB_CLIENT_ID=...` (see `.env.example`) for local builds, and set it as the repository variable `GITHUB_OAUTH_CLIENT_ID` for CI builds. It gets built into the app, so end users only ever see the **Sign in with GitHub** button.
 
@@ -84,13 +85,15 @@ The UI switches to a phone layout with a slide-in sidebar and safe-area insets. 
 
 ### Releases & in-app updates
 
-1. **One-time setup (on your Mac):** run `npm run updater:setup`. It creates a signing key at `~/.tauri/repohub-updater.key`, writes the public key into `src-tauri/tauri.conf.json` (commit that change), and stores the private key as the GitHub secret `TAURI_SIGNING_PRIVATE_KEY` using `gh`. If `gh` isn't signed in, add the secret by hand. Keep the private key safe, because installed apps only accept updates signed with it.
-2. Bump `version` in `package.json` and `src-tauri/tauri.conf.json`, then push a tag like `v0.2.0`. Tags containing `-beta` (for example `v0.3.0-beta.1`) become pre-releases, which only the Beta channel sees.
-3. CI builds a universal macOS `.dmg` and a Windows installer, signs the update bundles, and attaches them plus `latest.json` to a **draft** release. Publish the draft and installed copies of RepoHub pick it up on their next check.
+Double-click **`Release RepoHub.command`**, or run `npm run release` (add `-- 0.3.0` to pick a version). It:
 
-Every push to `main` also uploads installers as workflow artifacts. Local `npm run app:build` doesn't need the key, because updater artifacts are only enabled by `tauri.release.conf.json` in CI.
+1. creates the update-signing key on first run (`~/.tauri/repohub-updater.key`; back it up), puts the public key in `tauri.conf.json`, and stores the private key as the GitHub secret `TAURI_SIGNING_PRIVATE_KEY` using `gh`
+2. bumps the version (the patch number by default) and commits
+3. tags `vX.Y.Z` and pushes
 
-> Note: updates are signature-checked by Tauri. For a smooth macOS experience, sign and notarize with an Apple Developer ID (set `APPLE_CERTIFICATE`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` and `APPLE_TEAM_ID` secrets for tauri-action). Unsigned builds still work, but Gatekeeper will warn on first launch.
+GitHub Actions then builds a universal macOS `.dmg` and a Windows installer. It signs the update bundles and publishes a release with `latest.json`, which takes about 10–15 minutes. Installed copies of RepoHub then show **Update ready — restart now?** on their next check. Versions like `0.4.0-beta.1` become pre-releases, which only the Beta channel receives.
+
+**First install on macOS:** download the `.dmg` from the latest release, drag RepoHub to Applications and open it. Because the build isn't notarized by Apple, macOS blocks the first launch. Go to System Settings → Privacy & Security and click **Open Anyway**; you only do this once. Updates after that install from inside the app.
 
 ## How it works
 

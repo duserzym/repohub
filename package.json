@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "RepoHub \u2014 lightweight GitHub project dashboard for macOS, Windows and iOS",
+  "description": "RepoHub — lightweight GitHub project dashboard for macOS, Windows and iOS",
   "license": "MIT",
   "scripts": {
     "dev": "vite",
@@ -17,7 +17,8 @@
     "ios:dev": "tauri ios dev",
     "ios:build": "tauri ios build",
     "validate:graphql": "node scripts/validate-graphql.mjs",
-    "updater:setup": "node scripts/setup-updater.mjs"
+    "updater:setup": "node scripts/setup-updater.mjs",
+    "release": "node scripts/release.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.5",

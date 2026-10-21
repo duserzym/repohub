@@ -1,35 +1,85 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { demoDetail, demoRepos } from "./demo";
 import { AuthError, fetchRepoDetail, fetchRepos, type RepoListResult } from "./github";
 import { listen } from "./platform";
+import { kvDelete, kvGet, kvSet } from "./storage";
 import { useApp } from "./state";
 import { pushTray, summarize } from "./summary";
+
+// ---- load progress ("Loaded 40 of 120…") shared with the UI -------------
+let progress: { loaded: number; total: number } | null = null;
+const progressSubs = new Set<() => void>();
+function setProgress(p: typeof progress) {
+  progress = p;
+  progressSubs.forEach((f) => f());
+}
+export function useLoadProgress() {
+  return useSyncExternalStore(
+    (f) => (progressSubs.add(f), () => progressSubs.delete(f)),
+    () => progress,
+  );
+}
+
+// ---- last result cached on disk so the dashboard appears instantly on launch
+const CACHE_FILE = "cache.json";
+export const clearRepoCache = () => kvDelete("repos", CACHE_FILE);
 
 /** All dashboard data; auto-refreshes every `settings.pollMinutes`. */
 export function useRepos() {
   const app = useApp();
+  const qc = useQueryClient();
   const { token, demo, settings, tracked } = app;
   const key = ["repos", demo ? "demo" : token, settings.affiliations, settings.includeForks, settings.includeArchived, settings.maxRepos, tracked];
+  const cacheSig = JSON.stringify(key.slice(2));
 
   const q = useQuery<RepoListResult>({
     queryKey: key,
     enabled: app.ready && (demo || !!token),
     queryFn: async () => {
       if (demo) return demoRepos();
+      let lastPartial: RepoListResult | undefined;
       try {
-        return await fetchRepos(token!, settings, tracked);
+        const result = await fetchRepos(token!, settings, tracked, (partial) => {
+          setProgress({ loaded: partial.repos.length, total: partial.totalCount });
+          // First load: show repos as they arrive instead of a long spinner
+          // (never replace a full cached list with a partial one).
+          const cur = qc.getQueryData<RepoListResult>(key);
+          if (!cur || cur === lastPartial) {
+            lastPartial = partial;
+            qc.setQueryData(key, partial);
+          }
+        });
+        void kvSet("repos", { sig: cacheSig, data: result }, CACHE_FILE);
+        return result;
       } catch (e) {
-        if (e instanceof AuthError) await app.setToken(null);
+        if (e instanceof AuthError) {
+          await clearRepoCache();
+          await app.setToken(null);
+        }
         throw e;
+      } finally {
+        setProgress(null);
       }
     },
     refetchInterval: settings.pollMinutes * 60_000,
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
-    staleTime: 60_000,
+    staleTime: Math.min(settings.pollMinutes, 5) * 60_000,
     retry: (n, e) => !(e instanceof AuthError) && n < 2,
   });
+
+  // Show the last saved dashboard immediately while the fresh load runs.
+  useEffect(() => {
+    if (demo || !token || q.data) return;
+    let alive = true;
+    kvGet<{ sig: string; data: RepoListResult }>("repos", CACHE_FILE).then((c) => {
+      if (alive && c?.sig === cacheSig && !qc.getQueryData(key)) qc.setQueryData(key, c.data, { updatedAt: 0 });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [demo, token, cacheSig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const summary = useMemo(
     () => (q.data ? summarize(q.data.repos, app.categories, app.assignments) : null),
