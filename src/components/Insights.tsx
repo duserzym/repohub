@@ -25,7 +25,7 @@ function save(k: string, v: string) {
 }
 
 /** Charts for the dashboard (all repos) or one category. Every mark links to its repo or category. */
-export function Insights({ repos, fetchedAt, scoped }: { repos: Repo[]; fetchedAt: string; scoped: boolean }) {
+export function Insights({ repos, fetchedAt, scoped, pending }: { repos: Repo[]; fetchedAt: string; scoped: boolean; pending?: boolean }) {
   const { categories, assignments } = useApp();
   const [weeks, setWeeks] = useState<number>(() => +pref("viz-weeks", "12") || 12);
   const [open, setOpen] = useState(() => pref("viz-open", "1") === "1");
@@ -147,7 +147,13 @@ export function Insights({ repos, fetchedAt, scoped }: { repos: Repo[]; fetchedA
         <button className="btn ghost small" onClick={toggle}>{open ? "Hide charts" : "Show charts"}</button>
       </div>
 
-      {open && (
+      {open && pending && (
+        <div className="card panel viz-pending">
+          <span className="spinner" /> Loading commit activity, milestones and CI for your repositories… charts appear in a moment.
+        </div>
+      )}
+
+      {open && !pending && (
         <div className="viz-grid">
           <ChartCard
             className="span-8"

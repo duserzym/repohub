@@ -49,6 +49,7 @@ fn build_menu<R: Runtime>(app: &AppHandle<R>, s: Option<&TraySummary>) -> tauri:
     }
     menu.append(&MenuItem::with_id(app, "open", "Open RepoHub", true, None::<&str>)?)?;
     menu.append(&MenuItem::with_id(app, "refresh", "Refresh now", true, None::<&str>)?)?;
+    menu.append(&MenuItem::with_id(app, "check-updates", "Check for Updates…", true, None::<&str>)?)?;
     menu.append(&PredefinedMenuItem::separator(app)?)?;
     menu.append(&MenuItem::with_id(app, "quit", "Quit RepoHub", true, None::<&str>)?)?;
     Ok(menu)
@@ -69,6 +70,10 @@ pub fn setup<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             "open" => show_main(app),
             "refresh" => {
                 let _ = app.emit("tray-refresh", ());
+            }
+            "check-updates" => {
+                show_main(app);
+                let _ = app.emit("check-updates", ());
             }
             "install-update" => {
                 if let Err(e) = crate::updater::install(app) {

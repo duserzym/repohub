@@ -1,14 +1,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { demoDetail, demoRepos } from "./demo";
-import { AuthError, fetchRepoDetail, fetchRepos, type RepoListResult } from "./github";
+import { AuthError, fetchRepoDetail, fetchRepos, type LoadProgress, type RepoListResult } from "./github";
 import { listen } from "./platform";
 import { kvDelete, kvGet, kvSet } from "./storage";
 import { useApp } from "./state";
 import { pushTray, summarize } from "./summary";
 
 // ---- load progress ("Loaded 40 of 120…") shared with the UI -------------
-let progress: { loaded: number; total: number } | null = null;
+let progress: LoadProgress | null = null;
 const progressSubs = new Set<() => void>();
 function setProgress(p: typeof progress) {
   progress = p;
@@ -39,17 +39,24 @@ export function useRepos() {
     queryFn: async () => {
       if (demo) return demoRepos();
       let lastPartial: RepoListResult | undefined;
+      const previous = qc.getQueryData<RepoListResult>(key);
       try {
-        const result = await fetchRepos(token!, settings, tracked, (partial) => {
-          setProgress({ loaded: partial.repos.length, total: partial.totalCount });
-          // First load: show repos as they arrive instead of a long spinner
-          // (never replace a full cached list with a partial one).
-          const cur = qc.getQueryData<RepoListResult>(key);
-          if (!cur || cur === lastPartial) {
-            lastPartial = partial;
-            qc.setQueryData(key, partial);
-          }
-        });
+        const result = await fetchRepos(
+          token!,
+          settings,
+          tracked,
+          (partial, p) => {
+            setProgress(p);
+            // Show results as they arrive. Once the list phase is done every partial
+            // result is a complete list, so it is always safe to display.
+            const cur = qc.getQueryData<RepoListResult>(key);
+            if (!cur || cur === lastPartial || p.phase === "details") {
+              lastPartial = partial;
+              qc.setQueryData(key, partial);
+            }
+          },
+          previous,
+        );
         void kvSet("repos", { sig: cacheSig, data: result }, CACHE_FILE);
         return result;
       } catch (e) {
@@ -108,7 +115,9 @@ export function useTraySync() {
 
   // Keep the menu-bar item in sync after every fetch.
   useEffect(() => {
-    if (summary && data) void pushTray(summary, settings.menuBarStats, data.fetchedAt, data.viewer.login);
+    // Skip partial results so the menu bar never shows half-loaded numbers.
+    if (summary && data && !data.repos.some((r) => r.enriched === false))
+      void pushTray(summary, settings.menuBarStats, data.fetchedAt, data.viewer.login);
   }, [summary, data, settings.menuBarStats]);
 }
 

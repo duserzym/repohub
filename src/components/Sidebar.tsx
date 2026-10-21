@@ -6,7 +6,7 @@ import { useApp } from "../lib/state";
 import { CategoryManager } from "./CategoryManager";
 import { Icon } from "./Icon";
 import { ThemeQuickMenu } from "./ThemePicker";
-import { UpdateBanner } from "./UpdateBanner";
+import { UpdateBanner, UpdateCheckLink } from "./UpdateBanner";
 
 export function Sidebar({ route, open, onClose }: { route: Route; open: boolean; onClose(): void }) {
   const { categories, assignments, demo } = useApp();
@@ -38,6 +38,9 @@ export function Sidebar({ route, open, onClose }: { route: Route; open: boolean;
         <a className={`nav${is("discover") ? " active" : ""}`} href={href.discover()}>
           <Icon name="search" /> Discover
         </a>
+        <a className={`nav${is("ideas") ? " active" : ""}`} href={href.ideas()}>
+          <Icon name="bulb" /> Idea Pad
+        </a>
         <a className={`nav${is("teams") ? " active" : ""}`} href={href.teams()}>
           <Icon name="users" /> Teams
         </a>
@@ -67,6 +70,7 @@ export function Sidebar({ route, open, onClose }: { route: Route; open: boolean;
         <a className={`nav${is("settings") ? " active" : ""}`} href={href.settings()}>
           <Icon name="settings" /> Settings
         </a>
+        <UpdateCheckLink />
         {data?.viewer && (
           <div className="me">
             {data.viewer.avatarUrl ? <img src={data.viewer.avatarUrl} alt="" /> : <span className="avatar-fallback">{data.viewer.login[0]}</span>}

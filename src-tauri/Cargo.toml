@@ -1,6 +1,6 @@
 [package]
 name = "repohub"
-version = "0.1.0"
+version = "0.1.1"
 description = "RepoHub — lightweight GitHub project dashboard"
 authors = ["duserzym"]
 license = "MIT"

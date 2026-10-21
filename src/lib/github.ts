@@ -68,15 +68,19 @@ export async function rest<T>(token: string | null, path: string, accept?: strin
 // ---------------------------------------------------------------------------
 
 export const WEEKS = 12;
-// Only the most common places for a logo — each extra folder is another lookup per repo.
-const ICON_DIRS = ["", ".github", "assets"] as const;
+// Common places for a logo (fetched in the parallel detail phase, so cheap).
+const ICON_DIRS = ["", ".github", "assets", "docs", "images", "public", "img", "static"] as const;
 const WEEK_MS = 7 * 864e5;
 const treeAlias = (dir: string) => `tree_${dir.replace(/[^a-z]/gi, "") || "root"}`;
 
-const REPO_FIELDS = `
-fragment RepoFields on Repository {
+// Two-phase loading:
+//  1. RepoLight: cheap fields for up to 100 repos per request, so the dashboard appears fast.
+//  2. RepoHeavy: milestones, CI, commit history and icon lookups, fetched for small
+//     batches of repos by id, several requests in parallel.
+const LIGHT_FIELDS = `
+fragment RepoLight on Repository {
   id nameWithOwner name description url homepageUrl isPrivate isFork isArchived
-  stargazerCount forkCount pushedAt createdAt
+  stargazerCount forkCount pushedAt updatedAt createdAt
   owner { login avatarUrl }
   primaryLanguage { name color }
   repositoryTopics(first: 12) { nodes { topic { name } } }
@@ -85,11 +89,17 @@ fragment RepoFields on Repository {
   closedIssues: issues(states: CLOSED) { totalCount }
   openPRs: pullRequests(states: OPEN) { totalCount }
   mergedPRs: pullRequests(states: MERGED) { totalCount }
+  latestRelease { name tagName publishedAt url }
+  defaultBranchRef { name }
+}`;
+
+const HEAVY_FIELDS = `
+fragment RepoHeavy on Repository {
+  id
   milestones(states: OPEN, first: 3, orderBy: {field: DUE_DATE, direction: ASC}) {
     nodes { title url dueOn progressPercentage
       open: issues(states: OPEN) { totalCount } closed: issues(states: CLOSED) { totalCount } }
   }
-  latestRelease { name tagName publishedAt url }
   defaultBranchRef { name target { ... on Commit {
     oid committedDate messageHeadline
     statusCheckRollup { state }
@@ -98,7 +108,11 @@ fragment RepoFields on Repository {
   ${ICON_DIRS.map((d) => `${treeAlias(d)}: object(expression: "HEAD:${d}") { ... on Tree { entries { name type } } }`).join("\n  ")}
 }`;
 
-const weekVarDefs = "$since: GitTimestamp!";
+const HEAVY_QUERY = `
+query Heavy($ids: [ID!]!, $since: GitTimestamp!) {
+  nodes(ids: $ids) { ... on Repository { ...RepoHeavy } }
+}
+${HEAVY_FIELDS}`;
 
 function weekVars(): Record<string, string> {
   return { since: new Date(Date.now() - WEEKS * WEEK_MS).toISOString() };
@@ -126,7 +140,7 @@ function weeklyCounts(recent: { totalCount: number; nodes: { committedDate: stri
 }
 
 const LIST_QUERY = `
-query Repos($cursor: String, $first: Int!, $aff: [RepositoryAffiliation], $isFork: Boolean, ${weekVarDefs}) {
+query Repos($cursor: String, $first: Int!, $aff: [RepositoryAffiliation], $isFork: Boolean) {
   rateLimit { remaining limit resetAt }
   viewer {
     login name avatarUrl
@@ -134,11 +148,11 @@ query Repos($cursor: String, $first: Int!, $aff: [RepositoryAffiliation], $isFor
                  orderBy: {field: PUSHED_AT, direction: DESC}) {
       totalCount
       pageInfo { hasNextPage endCursor }
-      nodes { ...RepoFields }
+      nodes { ...RepoLight }
     }
   }
 }
-${REPO_FIELDS}`;
+${LIGHT_FIELDS}`;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function mapRepo(n: any, tracked = false): Repo {
@@ -190,13 +204,15 @@ function mapRepo(n: any, tracked = false): Repo {
     iconPaths: rankIconFiles(files),
     socialImage: n.usesCustomOpenGraphImage ? n.openGraphImageUrl : null,
     tracked,
+    enriched: !!c,
+    sig: [n.pushedAt, n.updatedAt, n.openIssues.totalCount, n.closedIssues.totalCount, n.openPRs.totalCount, n.mergedPRs.totalCount].join("|"),
   };
 }
 
 /** Pick likely logo/icon files from a repo's top-level folders. */
 export function rankIconFiles(files: { path: string; dir: string; name: string }[]): string[] {
   const extScore: Record<string, number> = { png: 5, svg: 4, webp: 3, jpg: 2, jpeg: 2, ico: 1 };
-  const dirScore: Record<string, number> = { ".github": 4, "": 3, assets: 2, public: 1, docs: 0, images: 0 };
+  const dirScore: Record<string, number> = { ".github": 4, "": 3, assets: 2, public: 1, docs: 0, images: 0, img: 0, static: 0 };
   const scored = files
     .map((f) => {
       const m = f.name.toLowerCase().match(/^(.*)\.(png|svg|webp|jpe?g|ico)$/);
@@ -220,6 +236,8 @@ export function rankIconFiles(files: { path: string; dir: string; name: string }
 
 export interface SyncStats {
   ms: number;
+  /** repos whose details were unchanged and reused from the last sync */
+  reused?: number;
   requests: number;
   slowRetries: number;
   pageSize: number;
@@ -227,6 +245,8 @@ export interface SyncStats {
 
 export interface RepoListResult {
   stats?: SyncStats;
+  /** when every repo's details were last fetched (drives periodic full refresh) */
+  fullDetailsAt?: string;
   viewer: Viewer;
   repos: Repo[];
   totalCount: number;
@@ -234,49 +254,92 @@ export interface RepoListResult {
   fetchedAt: string;
 }
 
+export interface LoadProgress {
+  phase: "list" | "details";
+  done: number;
+  total: number;
+}
+
 /**
- * Loads repositories page by page. `onProgress` receives each partial result so
- * the dashboard can render the first repos within a second or two.
- * Pages start at 20 repos and shrink automatically if GitHub is slow.
+ * Loads repositories in two phases (see LIGHT_FIELDS / HEAVY_FIELDS).
+ * `onProgress` receives each partial result so the dashboard renders immediately
+ * and fills in progress, CI and activity as the parallel detail requests finish.
  */
+/** Repos whose details must be re-fetched even if nothing visible changed. */
+function needsDetails(prev: Repo | undefined, sig: string, prevAge: number): boolean {
+  if (!prev?.enriched || prev.sig !== sig) return true;
+  if (prev.ci === "PENDING" || prev.ci === "EXPECTED") return true; // checks still running
+  if (prev.pushedAt && Date.now() - new Date(prev.pushedAt).getTime() < 3600e3) return true; // recent push: CI may update
+  return prevAge > 6 * 3600e3; // full detail refresh a few times a day (weekly buckets roll over)
+}
+
 export async function fetchRepos(
   token: string,
   settings: Settings,
   trackedNames: string[],
-  onProgress?: (partial: RepoListResult) => void,
+  onProgress?: (partial: RepoListResult, p: LoadProgress) => void,
+  previous?: RepoListResult,
 ): Promise<RepoListResult> {
-  const repos: Repo[] = [];
-  let cursor: string | null = null;
+  const t0 = performance.now();
+  const stats: SyncStats = { ms: 0, requests: 0, slowRetries: 0, pageSize: 0 };
+  const raw = new Map<string, any>(); // id → merged GraphQL node
+  const order: string[] = [];
+  const trackedIds = new Set<string>();
   let viewer: Viewer | null = null;
   let rateLimit: RateLimit = { remaining: 0, limit: 0, resetAt: "" };
   let totalCount = 0;
-  const vars = weekVars();
-  let pageSize = 20;
-  const t0 = performance.now();
-  const stats: SyncStats = { ms: 0, requests: 0, slowRetries: 0, pageSize };
-  const result = (): RepoListResult => ({
-    stats: { ...stats, ms: Math.round(performance.now() - t0), pageSize },
-    viewer: viewer!,
-    repos: settings.includeArchived ? [...repos] : repos.filter((r) => !r.isArchived || r.tracked),
-    totalCount,
-    rateLimit,
-    fetchedAt: new Date().toISOString(),
-  });
+
+  // Incremental refresh: unchanged repos keep their previous details, so a
+  // refresh is usually a single cheap list request.
+  const prevById = new Map((previous?.repos ?? []).map((r) => [r.id, r]));
+  const prevAge = previous ? Date.now() - new Date(previous.fullDetailsAt ?? previous.fetchedAt).getTime() : Infinity;
+  const reuse = new Map<string, Repo>();
+  const fresh = (r: Repo): Repo => {
+    const old = reuse.get(r.id);
+    return old && !r.enriched
+      ? { ...r, milestones: old.milestones, lastCommit: old.lastCommit, ci: old.ci, weekly: old.weekly, iconPaths: old.iconPaths, defaultBranch: old.defaultBranch ?? r.defaultBranch, enriched: true }
+      : r;
+  };
+  let fullDetailsAt = previous?.fullDetailsAt ?? previous?.fetchedAt;
+
+  const result = (): RepoListResult => {
+    const repos = order
+      .map((id) => fresh(mapRepo(raw.get(id), trackedIds.has(id))))
+      .filter((r) => !(r.name === "repohub-ideas" && r.owner === viewer?.login)); // the Idea Pad has its own page
+    return {
+      stats: { ...stats, ms: Math.round(performance.now() - t0) },
+      viewer: viewer!,
+      repos: settings.includeArchived ? repos : repos.filter((r) => !r.isArchived || r.tracked),
+      totalCount,
+      rateLimit,
+      fetchedAt: new Date().toISOString(),
+      fullDetailsAt,
+    };
+  };
+  const add = (n: any, tracked = false) => {
+    if (!n || raw.has(n.id)) return;
+    raw.set(n.id, n);
+    order.push(n.id);
+    if (tracked) trackedIds.add(n.id);
+  };
+
+  // ---- phase 1: the list (cheap, 100 per request) ----
+  let cursor: string | null = null;
+  let pageSize = Math.min(100, settings.maxRepos);
   do {
     let data: any;
     stats.requests++;
     try {
       data = await gql(token, LIST_QUERY, {
-        ...vars,
         cursor,
-        first: Math.min(pageSize, settings.maxRepos - repos.length),
+        first: Math.min(pageSize, settings.maxRepos - order.length),
         aff: settings.affiliations,
         isFork: settings.includeForks ? null : false,
       });
     } catch (e) {
-      if (e instanceof SlowError && pageSize > 5) {
+      if (e instanceof SlowError && pageSize > 10) {
         stats.slowRetries++;
-        pageSize = Math.max(5, Math.floor(pageSize / 2)); // retry the same page in smaller pieces
+        pageSize = Math.max(10, Math.floor(pageSize / 2));
         continue;
       }
       throw e;
@@ -285,35 +348,84 @@ export async function fetchRepos(
     rateLimit = data.rateLimit;
     const conn = data.viewer.repositories;
     totalCount = Math.min(conn.totalCount, settings.maxRepos);
-    repos.push(...conn.nodes.map((n: any) => mapRepo(n)));
+    conn.nodes.forEach((n: any) => add(n));
     cursor = conn.pageInfo.hasNextPage ? conn.pageInfo.endCursor : null;
-    if (cursor) onProgress?.(result());
-  } while (cursor && repos.length < settings.maxRepos);
+    onProgress?.(result(), { phase: "list", done: order.length, total: totalCount });
+  } while (cursor && order.length < settings.maxRepos);
 
-  const own = new Set(repos.map((r) => r.nameWithOwner.toLowerCase()));
+  const own = new Set(order.map((id) => raw.get(id).nameWithOwner.toLowerCase()));
   const extra = trackedNames.filter((n) => !own.has(n.toLowerCase()));
-  if (extra.length) repos.push(...(await fetchTracked(token, extra, vars)));
+  if (extra.length) {
+    stats.requests += Math.ceil(extra.length / 20);
+    (await fetchTrackedLight(token, extra)).forEach((n) => add(n, true));
+  }
+
+  // ---- phase 2: details, in parallel batches — only for repos that changed ----
+  const stale: string[] = [];
+  for (const id of order) {
+    const light = mapRepo(raw.get(id));
+    const prev = prevById.get(id);
+    if (needsDetails(prev, light.sig!, prevAge)) stale.push(id);
+    else reuse.set(id, prev!);
+  }
+  if (stale.length === order.length) fullDetailsAt = new Date().toISOString();
+  stats.reused = reuse.size;
+  const BATCH = 8;
+  const PARALLEL = 4;
+  stats.pageSize = BATCH;
+  const queue: string[][] = [];
+  for (let i = 0; i < stale.length; i += BATCH) queue.push(stale.slice(i, i + BATCH));
+  if (stale.length) onProgress?.(result(), { phase: "details", done: 0, total: stale.length });
+  const vars = weekVars();
+  let done = 0;
+  let lastEmit = 0;
+  const worker = async () => {
+    for (let ids = queue.shift(); ids; ids = queue.shift()) {
+      stats.requests++;
+      try {
+        const data: any = await gql(token, HEAVY_QUERY, { ...vars, ids });
+        for (const h of data.nodes ?? []) if (h?.id && raw.has(h.id)) raw.set(h.id, { ...raw.get(h.id), ...h });
+        done += ids.length;
+      } catch (e) {
+        if (e instanceof AuthError) throw e;
+        if (e instanceof SlowError && ids.length > 1) {
+          stats.slowRetries++;
+          const mid = Math.ceil(ids.length / 2);
+          queue.push(ids.slice(0, mid), ids.slice(mid)); // split and try again
+          continue;
+        }
+        console.warn("details failed for", ids, e);
+        done += ids.length; // keep the light data for these repos
+      }
+      // Re-render at most every 400 ms while details stream in.
+      if (performance.now() - lastEmit > 400 || done >= stale.length) {
+        lastEmit = performance.now();
+        onProgress?.(result(), { phase: "details", done, total: stale.length });
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: PARALLEL }, worker));
   return result();
 }
 
 function trackedQuery(n: number) {
   const defs = Array.from({ length: n }, (_, j) => `$o${j}: String!, $n${j}: String!`).join(", ");
-  const body = Array.from({ length: n }, (_, j) => `r${j}: repository(owner: $o${j}, name: $n${j}) { ...RepoFields }`).join("\n");
-  return `query Tracked(${defs}, ${weekVarDefs}) {\n${body}\n}\n${REPO_FIELDS}`;
+  const body = Array.from({ length: n }, (_, j) => `r${j}: repository(owner: $o${j}, name: $n${j}) { ...RepoLight }`).join("\n");
+  return `query Tracked(${defs}) {\n${body}\n}\n${LIGHT_FIELDS}`;
 }
 
-async function fetchTracked(token: string, names: string[], vars: Record<string, string>): Promise<Repo[]> {
-  const out: Repo[] = [];
-  for (let i = 0; i < names.length; i += 10) {
-    const chunk = names.slice(i, i + 10);
-    const v: Record<string, string> = { ...vars };
+async function fetchTrackedLight(token: string, names: string[]): Promise<any[]> {
+  const out: any[] = [];
+  for (let i = 0; i < names.length; i += 20) {
+    const chunk = names.slice(i, i + 20);
+    const v: Record<string, string> = {};
     chunk.forEach((full, j) => {
       const [o, n] = full.split("/");
       v[`o${j}`] = o;
       v[`n${j}`] = n;
     });
     const data: any = await gql(token, trackedQuery(chunk.length), v);
-    chunk.forEach((_, j) => data[`r${j}`] && out.push(mapRepo(data[`r${j}`], true)));
+    chunk.forEach((_, j) => data[`r${j}`] && out.push(data[`r${j}`]));
   }
   return out;
 }
@@ -460,6 +572,7 @@ export async function fetchOrgTeams(token: string): Promise<OrgTeams[]> {
 /** Exposed for schema validation in scripts/validate-graphql.mjs */
 export const QUERIES = {
   list: LIST_QUERY,
+  heavy: HEAVY_QUERY,
   tracked: trackedQuery(2),
   detail: DETAIL_QUERY,
   orgs: ORGS_QUERY,

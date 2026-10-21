@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { cachedIcon, resolveIcon } from "../lib/icons";
 import { useApp } from "../lib/state";
+import { useRepos } from "../lib/queries";
 import type { CheckState, Repo } from "../lib/types";
 import { Icon, type IconName } from "./Icon";
 
@@ -20,7 +21,11 @@ export function RepoIcon({ repo, size = 40 }: { repo: Repo; size?: number }) {
     };
   }, [repo.nameWithOwner, repo.iconPaths[0], override, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const viewer = useRepos().data?.viewer.login;
   const style = { width: size, height: size, borderRadius: size * 0.24 };
+  // No icon in the repo: use the organisation's avatar for org repos (not your own face).
+  if (src === null && !failed && repo.ownerAvatar && viewer && repo.owner.toLowerCase() !== viewer.toLowerCase())
+    return <img className="repo-icon" style={style} src={repo.ownerAvatar} alt="" loading="lazy" onError={() => setFailed(true)} />;
   if (src && !failed) {
     const wide = !!repo.socialImage && src === repo.socialImage && !override;
     return (

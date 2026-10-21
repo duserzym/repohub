@@ -43,6 +43,10 @@ export interface Repo {
   socialImage: string | null;
   /** true when the repo is tracked from search rather than owned/collaborated. */
   tracked?: boolean;
+  /** false while milestones / CI / activity are still loading */
+  enriched?: boolean;
+  /** change signature (pushedAt, updatedAt, counts) used for incremental refresh */
+  sig?: string;
 }
 
 export interface Category {

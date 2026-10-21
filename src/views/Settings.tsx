@@ -59,7 +59,8 @@ export function Settings() {
         {data && <p className="small muted">API budget: {data.rateLimit.remaining}/{data.rateLimit.limit} points, resets {new Date(data.rateLimit.resetAt).toLocaleTimeString()}.</p>}
         {data?.stats && (
           <p className="small muted">
-            Last sync: {data.repos.length} repos in {(data.stats.ms / 1000).toFixed(1)} s · {data.stats.requests} requests · {data.stats.pageSize} repos per request
+            Last sync: {data.repos.length} repos in {(data.stats.ms / 1000).toFixed(1)} s · {data.stats.requests} requests
+            {data.stats.reused ? ` · ${data.stats.reused} unchanged repos reused` : ""}
             {data.stats.slowRetries > 0 && ` · GitHub was slow ${data.stats.slowRetries}× (requests were split smaller)`}
           </p>
         )}
@@ -145,7 +146,7 @@ function UpdatesSection({ settings, set }: { settings: S; set(p: Partial<S>): vo
           <div className="row gap">
             {u.kind === "available" && <button className="btn" onClick={() => downloadUpdate()}>Download</button>}
             {(u.kind === "ready" || u.kind === "installing") && <button className="btn primary" disabled={u.kind === "installing"} onClick={() => installUpdate()}>Restart to update</button>}
-            <button className="btn" disabled={u.kind === "checking" || u.kind === "downloading"} onClick={() => checkForUpdates(settings.updateChannel, settings.autoUpdate)}>Check for updates</button>
+            <button className="btn" disabled={u.kind === "checking" || u.kind === "downloading"} onClick={() => checkForUpdates(settings.updateChannel, settings.autoUpdate, true)}>Check for updates</button>
           </div>
         )}
       </div>

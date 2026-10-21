@@ -33,6 +33,8 @@ export function Dashboard({ category }: { category: string | null }) {
   const { categories, assignments, pinned, settings, update } = app;
   const { data, isLoading, isFetching, error, summary } = useRepos();
   const progress = useLoadProgress();
+  // Light data is on screen but progress / CI / activity are still streaming in.
+  const pending = !!data?.repos.some((r) => r.enriched === false);
   const qc = useQueryClient();
   const [filter, setFilter] = useState("");
   const [mode, setMode] = useState<"grid" | "list">(() => pref("view-mode", "grid") as "grid" | "list");
@@ -91,7 +93,12 @@ export function Dashboard({ category }: { category: string | null }) {
           </h1>
           <div className="muted small">
             {progress ? (
-              <span className="row gap"><span className="spinner" /> Loading {progress.loaded} of {progress.total} repositories…</span>
+              <span className="row gap">
+                <span className="spinner" />
+                {progress.phase === "list"
+                  ? `Loading repositories… ${progress.done} of ${progress.total}`
+                  : `Loading progress, CI and activity… ${progress.done} of ${progress.total}`}
+              </span>
             ) : isFetching && data ? (
               <span className="row gap"><span className="spinner" /> Refreshing…</span>
             ) : (
@@ -127,15 +134,25 @@ export function Dashboard({ category }: { category: string | null }) {
           <Stat icon="folder" label="Repositories" value={s.repos} />
           <Stat icon="issue" label="Open issues" value={s.openIssues} sub={`${s.closedIssues} closed`} />
           <Stat icon="pr" label="Open PRs" value={s.openPRs} />
-          <Stat icon={s.failingCI ? "x" : "check"} label="CI" value={s.failingCI ? `${s.failingCI} failing` : "All passing"} tone={s.failingCI ? "bad" : "ok"} sub={`✓ ${s.passingCI} passing`} />
-          <Stat icon="activity" label="Commits · 30d" value={s.commits30} />
-          <Stat icon="milestone" label="Avg progress" value={s.avgProgress != null ? `${s.avgProgress}%` : "—"} sub={`${s.releases30} releases this month`} />
+          {pending ? (
+            <>
+              <Stat icon="clock" label="CI" value="…" sub="loading" />
+              <Stat icon="activity" label="Commits · 30d" value="…" sub="loading" />
+              <Stat icon="milestone" label="Avg progress" value="…" sub="loading" />
+            </>
+          ) : (
+            <>
+              <Stat icon={s.failingCI ? "x" : "check"} label="CI" value={s.failingCI ? `${s.failingCI} failing` : "All passing"} tone={s.failingCI ? "bad" : "ok"} sub={`✓ ${s.passingCI} passing`} />
+              <Stat icon="activity" label="Commits · 30d" value={s.commits30} />
+              <Stat icon="milestone" label="Avg progress" value={s.avgProgress != null ? `${s.avgProgress}%` : "—"} sub={`${s.releases30} releases this month`} />
+            </>
+          )}
         </div>
       )}
 
-      {data && repos.length > 0 && !filter && <Insights repos={repos} fetchedAt={data.fetchedAt} scoped={!!category} />}
+      {data && repos.length > 0 && !filter && <Insights repos={repos} fetchedAt={data.fetchedAt} scoped={!!category} pending={pending} />}
 
-      {!category && s && !filter && (
+      {!category && s && !filter && !pending && (
         <div className="panels">
           <section className="card panel">
             <h3><Icon name="alert" size={14} /> Needs attention</h3>

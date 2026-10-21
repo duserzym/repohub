@@ -36,6 +36,12 @@ A lightweight, fast dashboard, with a crisp "Porcelain & Sapphire" glass theme (
 - **Discover.** Search GitHub for ready-to-use projects, with topic presets for each category and filters for "maintained in the last year", open-source license, minimum stars and language. Click **Track** to add a repo to your dashboard with live progress.
 - **Menu bar / tray.** On macOS the menu bar shows live stats next to the icon, for example `⊙ 42  ⑂ 7  ✕ 1`, and you choose which stats appear. Left-click opens a popover summary, right-click opens a menu with the numbers plus Open, Refresh and Quit. Closing the window keeps RepoHub running in the tray.
 - **In-app updates, CodexBar style.** RepoHub checks for new releases in the background (shortly after launch, then every 6 hours) and downloads them quietly. When an update is ready you get an inline **Update ready — restart now?** action in the sidebar, the tray menu and the menu-bar popover. One click installs it and relaunches. You can also check by hand from Settings → Updates, turn automatic downloads off, or switch to the **Beta** channel to get pre-releases.
+- **Idea Pad.** A scratch pad for project ideas, stored as Markdown in a private repo (`<you>/repohub-ideas`) that RepoHub creates and syncs as you type. Every morning a GitHub Action in that repo:
+  1. finds new or changed ideas
+  2. searches GitHub for related, ready-to-use projects
+  3. writes or refines a development plan for each one (summary, goals, what to reuse, approach, milestones, first issues, risks, next step)
+  
+  Plans appear next to each idea in the app, and **Refine now** runs the planner on demand. It uses GitHub Models with no setup; add an `ANTHROPIC_API_KEY` secret to the ideas repo to use Claude instead, and a `MODEL` repository variable to pick a model.
 - **Teams (groundwork).** Local teams with member roles and category scopes, plus a read-only view of your GitHub organizations and their teams. See the [roadmap](#roadmap).
 - **Demo mode** lets you explore the UI without signing in (`?demo` in the browser, or "Explore with demo data").
 
@@ -69,7 +75,7 @@ RepoHub's OAuth App is registered under @duserzym (Client ID `Ov23liAaqYPNVsBbVV
 3. After creating it, tick **Enable Device Flow** and copy the **Client ID**. Do not generate a client secret.
 4. Put it in `.env` as `VITE_GITHUB_CLIENT_ID=...` (see `.env.example`) for local builds, and set it as the repository variable `GITHUB_OAUTH_CLIENT_ID` for CI builds. It gets built into the app, so end users only ever see the **Sign in with GitHub** button.
 
-Requested scopes: `repo` (so private repos are included), `read:org`, `read:user`.
+Requested scopes: `repo` (so private repos are included), `workflow` (to install the Idea Pad's daily planner), `read:org`, `read:user`.
 
 ### 2. iOS
 
@@ -116,7 +122,7 @@ src-tauri/
 scripts/validate-graphql.mjs   checks every query against GitHub's public schema
 ```
 
-- **Fast.** One GraphQL request per 25 repos loads everything the dashboard needs. A full refresh of 100 repos costs a few API points out of the 5,000/hour budget, and the remaining budget is shown in the header. The JS bundle is about 85 kB gzipped and desktop installers are typically 10–15 MB.
+- **Fast.** Loading happens in two phases. A cheap list request (100 repos at a time) puts every repo on screen in about a second. Milestones, CI, activity and icons then stream in from small parallel batches. Refreshes are incremental: only repos whose push time, update time or issue/PR counts changed are re-fetched, so a refresh is usually a single request. The last result is cached on disk for an instant start. A full refresh of 100 repos costs a few API points out of the 5,000/hour budget, and the remaining budget is shown in the header. The startup JS bundle is about 100 kB gzipped (the Idea Pad loads on demand) and desktop installers are typically 10–15 MB.
 - **Progress %.** The nearest open milestone's completion if the repo has one, otherwise closed ÷ total issues.
 - **Local data.** Settings, categories, assignments and the icon cache live in the app's data folder (`repohub.json`, `icons.json`). The token is stored in the keychain only.
 

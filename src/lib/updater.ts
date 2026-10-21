@@ -33,9 +33,10 @@ function set(s: UpdateStatus) {
   subs.forEach((f) => f());
 }
 
-export async function checkForUpdates(channel: string, autoDownload: boolean) {
-  if (!updatesSupported || status.kind === "downloading" || status.kind === "installing") return;
-  if (status.kind === "ready") return;
+/** `manual` = the user asked: always hits the network, even right after a background check. */
+export async function checkForUpdates(channel: string, autoDownload: boolean, manual = false) {
+  if (!updatesSupported || status.kind === "downloading" || status.kind === "installing" || status.kind === "checking") return;
+  if (status.kind === "ready" && !manual) return;
   set({ kind: "checking" });
   try {
     const info = await invoke<UpdateInfo | null>("update_check", { channel });
@@ -99,12 +100,17 @@ export function useUpdateScheduler() {
     const run = () => checkForUpdates(settings.updateChannel, settings.autoUpdate);
     const first = setTimeout(run, 8_000);
     const every = setInterval(run, CHECK_EVERY);
-    let off = () => {};
-    listen<string>("update-error", (m) => set({ kind: "error", message: m })).then((f) => (off = f));
+    const offs: (() => void)[] = [];
+    listen<string>("update-error", (m) => set({ kind: "error", message: m })).then((f) => offs.push(f));
+    // "Check for Updates…" in the menu-bar menu: show the result in Settings → Updates.
+    listen("check-updates", () => {
+      location.hash = "#/settings";
+      void checkForUpdates(settings.updateChannel, settings.autoUpdate, true);
+    }).then((f) => offs.push(f));
     return () => {
       clearTimeout(first);
       clearInterval(every);
-      off();
+      offs.forEach((f) => f());
     };
   }, [ready, settings.updateChannel, settings.autoUpdate]);
 }

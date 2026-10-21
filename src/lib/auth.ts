@@ -6,7 +6,8 @@ import { deleteSecret, getSecret, setSecret } from "./storage";
 // https://docs.github.com/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow
 
 export const TOKEN_KEY = "github-token";
-export const SCOPES = "repo read:org read:user";
+// `workflow` lets RepoHub install the Idea Pad's daily planner workflow in your ideas repo.
+export const SCOPES = "repo workflow read:org read:user";
 // Public OAuth App client ID for RepoHub (client IDs are not secret).
 // Override with VITE_GITHUB_CLIENT_ID for a fork or a different OAuth App.
 export const DEFAULT_CLIENT_ID = (import.meta.env.VITE_GITHUB_CLIENT_ID as string | undefined) || "Ov23liAaqYPNVsBbVVJb";

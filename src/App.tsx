@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Spinner } from "./components/bits";
 import { Icon } from "./components/Icon";
 import { Login } from "./components/Login";
@@ -14,6 +14,8 @@ import { Discover } from "./views/Discover";
 import { RepoDetail } from "./views/RepoDetail";
 import { Settings } from "./views/Settings";
 import { Teams } from "./views/Teams";
+// The Idea Pad (with its Markdown renderer) loads on demand to keep startup fast.
+const Ideas = lazy(() => import("./views/Ideas").then((m) => ({ default: m.Ideas })));
 import { TrayPopover } from "./views/TrayPopover";
 
 function useTheme() {
@@ -53,6 +55,11 @@ function Shell() {
         {route.view === "repo" && <RepoDetail key={route.nameWithOwner} nameWithOwner={route.nameWithOwner} tab={route.tab} />}
         {route.view === "discover" && <Discover />}
         {route.view === "teams" && <Teams />}
+        {route.view === "ideas" && (
+          <Suspense fallback={<div className="center-fill"><Spinner /></div>}>
+            <Ideas slug={route.slug} />
+          </Suspense>
+        )}
         {route.view === "settings" && <Settings />}
       </main>
     </div>

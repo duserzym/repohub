@@ -81,7 +81,12 @@ export function RepoCard({ repo }: { repo: Repo }) {
       <p className="repo-desc">{repo.description || <span className="muted">No description</span>}</p>
 
       <div className="repo-progress">
-        {prog ? (
+        {repo.enriched === false ? (
+          <>
+            <div className="small muted">Loading progress…</div>
+            <div className="progress shimmer" />
+          </>
+        ) : prog ? (
           <>
             <div className="row between small">
               <span className="truncate">{prog.label}</span>

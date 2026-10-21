@@ -7,6 +7,7 @@ export type Route =
   | { view: "repo"; nameWithOwner: string; tab: string }
   | { view: "discover" }
   | { view: "teams" }
+  | { view: "ideas"; slug: string | null }
   | { view: "settings" }
   | { view: "tray" };
 
@@ -21,6 +22,8 @@ export function parse(hash: string): Route {
       return { view: "discover" };
     case "teams":
       return { view: "teams" };
+    case "ideas":
+      return { view: "ideas", slug: parts[1] ?? null };
     case "settings":
       return { view: "settings" };
     case "tray":
@@ -36,6 +39,7 @@ export const href = {
   repo: (nwo: string, tab?: string) => `#/repo/${nwo}${tab && tab !== "overview" ? `/${tab}` : ""}`,
   discover: () => "#/discover",
   teams: () => "#/teams",
+  ideas: (slug?: string) => (slug ? `#/ideas/${slug}` : "#/ideas"),
   settings: () => "#/settings",
 };
 

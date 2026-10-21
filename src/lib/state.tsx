@@ -6,7 +6,7 @@ import { kvGet, kvSet } from "./storage";
 import type { Category, Settings, Team } from "./types";
 
 export const DEFAULT_SETTINGS: Settings = {
-  pollMinutes: 5,
+  pollMinutes: 2,
   includeForks: false,
   includeArchived: false,
   affiliations: ["OWNER", "COLLABORATOR", "ORGANIZATION_MEMBER"],
