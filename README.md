@@ -39,6 +39,17 @@ A lightweight, fast dashboard, with a quiet "Ivory & Brass" glass theme (and a "
 - **Teams (groundwork).** Local teams with member roles and category scopes, plus a read-only view of your GitHub organizations and their teams. See the [roadmap](#roadmap).
 - **Demo mode** lets you explore the UI without signing in (`?demo` in the browser, or "Explore with demo data").
 
+## Install on your Mac
+
+Double-click **`Install RepoHub.command`** in this folder. It:
+
+1. checks for (and offers to install) the Command Line Tools, Node.js and Rust
+2. walks you through the one-time GitHub OAuth App setup, which needs just a client ID
+3. builds RepoHub and copies it to `/Applications`
+4. opens the app
+
+Run it again any time to rebuild from the latest code. If macOS blocks the file, right-click it and choose **Open**.
+
 ## Quick start
 
 Prerequisites: [Node 20+](https://nodejs.org), [Rust](https://rustup.rs), and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS (Xcode for macOS/iOS, WebView2 + MSVC build tools on Windows).
