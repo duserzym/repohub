@@ -96,10 +96,6 @@ export function Settings() {
 
       <section className="card panel form">
         <h3>Account</h3>
-        <label className="field">
-          <span>GitHub OAuth App client ID</span>
-          <input className="input" value={settings.clientId} onChange={(e) => set({ clientId: e.target.value.trim() })} placeholder="Ov23li…" />
-        </label>
         <div className="row gap wrap">
           {token && <button className="btn" onClick={() => { void setToken(null); qc.clear(); }}><Icon name="logout" /> Sign out</button>}
           {demo && <button className="btn" onClick={() => { setDemo(false); qc.clear(); }}>Exit demo mode</button>}

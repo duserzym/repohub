@@ -1,52 +1,38 @@
 import { useEffect, useRef, useState } from "react";
-import { pollDeviceFlow, startDeviceFlow, type DeviceCode } from "../lib/auth";
-import { httpFetch, openUrl } from "../lib/platform";
+import { DEFAULT_CLIENT_ID, pollDeviceFlow, startDeviceFlow, type DeviceCode } from "../lib/auth";
+import { openUrl } from "../lib/platform";
 import { useApp } from "../lib/state";
 import { Spinner } from "./bits";
 import { Icon } from "./Icon";
 
+// One button → a small prompt with the one-time code → GitHub opens in the
+// browser → RepoHub signs in by itself as soon as you approve.
+
 export function Login() {
-  const { settings, update, setToken, setDemo } = useApp();
+  const { settings, setToken, setDemo } = useApp();
+  const clientId = DEFAULT_CLIENT_ID || settings.clientId;
   const [code, setCode] = useState<DeviceCode | null>(null);
+  const [copied, setCopied] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [pat, setPat] = useState("");
-  const [showAdvanced, setShowAdvanced] = useState(!settings.clientId);
   const abort = useRef<AbortController | null>(null);
 
   useEffect(() => () => abort.current?.abort(), []);
 
-  async function deviceLogin() {
+  async function signIn() {
     setErr(null);
     setBusy(true);
     try {
-      const c = await startDeviceFlow(settings.clientId);
+      const c = await startDeviceFlow(clientId);
       setCode(c);
-      await navigator.clipboard?.writeText(c.user_code).catch(() => {});
+      setCopied(await navigator.clipboard?.writeText(c.user_code).then(() => true, () => false) ?? false);
       void openUrl(c.verification_uri);
       abort.current = new AbortController();
-      const token = await pollDeviceFlow(settings.clientId, c, abort.current.signal);
-      await setToken(token);
+      await setToken(await pollDeviceFlow(clientId, c, abort.current.signal));
     } catch (e) {
       if ((e as Error).name !== "AbortError") setErr((e as Error).message);
+    } finally {
       setCode(null);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function tokenLogin() {
-    setErr(null);
-    const t = pat.trim();
-    if (!t) return;
-    setBusy(true);
-    try {
-      const res = await httpFetch("https://api.github.com/user", { headers: { Authorization: `Bearer ${t}` } });
-      if (!res.ok) throw new Error(res.status === 401 ? "That token was rejected by GitHub." : `GitHub ${res.status}`);
-      await setToken(t);
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
       setBusy(false);
     }
   }
@@ -57,68 +43,32 @@ export function Login() {
         <img src="/icon.svg" alt="" width={56} height={56} />
         <h1>RepoHub</h1>
         <p className="muted">Live progress for every GitHub project you work on.</p>
-
-        {code ? (
-          <div className="device">
-            <p>Enter this code on GitHub (copied to your clipboard):</p>
-            <div className="user-code">{code.user_code}</div>
-            <button className="btn" onClick={() => openUrl(code.verification_uri)}>
-              <Icon name="external" /> Open github.com/login/device
-            </button>
-            <p className="small muted row gap center">
-              <Spinner /> Waiting for approval…
-            </p>
-            <button className="btn ghost small" onClick={() => abort.current?.abort()}>
-              Cancel
-            </button>
-          </div>
-        ) : (
-          <>
-            <button className="btn primary big" onClick={deviceLogin} disabled={busy || !settings.clientId}>
-              <Icon name="github" /> Sign in with GitHub
-            </button>
-            {!settings.clientId && <p className="small muted">Add your OAuth App client ID below to enable browser sign-in.</p>}
-          </>
-        )}
-
+        <button className="btn primary big" onClick={signIn} disabled={busy || !clientId}>
+          <Icon name="github" /> Sign in with GitHub
+        </button>
+        {!clientId && <p className="small muted">GitHub sign-in isn't set up in this build yet.</p>}
         {err && <p className="error">{err}</p>}
-
-        <button className="link small" onClick={() => setShowAdvanced((v) => !v)}>
-          {showAdvanced ? "Hide" : "Other ways to sign in"}
-        </button>
-        {showAdvanced && (
-          <div className="advanced">
-            <label className="field">
-              <span>OAuth App client ID (device flow enabled)</span>
-              <input
-                className="input"
-                value={settings.clientId}
-                placeholder="Ov23li…"
-                onChange={(e) => update("settings", (s) => ({ ...s, clientId: e.target.value.trim() }))}
-              />
-            </label>
-            <label className="field">
-              <span>
-                Or paste a personal access token (<code>repo</code>, <code>read:org</code>)
-              </span>
-              <div className="row gap">
-                <input className="input grow" type="password" value={pat} onChange={(e) => setPat(e.target.value)} placeholder="ghp_… or github_pat_…" />
-                <button className="btn" onClick={tokenLogin} disabled={busy || !pat.trim()}>
-                  Use token
-                </button>
-              </div>
-            </label>
-            <button className="link small" onClick={() => openUrl("https://github.com/settings/tokens/new?scopes=repo,read:org&description=RepoHub")}>
-              Create a token on GitHub
-            </button>
-          </div>
-        )}
-
-        <div className="divider" />
-        <button className="btn ghost" onClick={() => setDemo(true)}>
-          <Icon name="eye" /> Explore with demo data
-        </button>
+        <button className="link small" onClick={() => setDemo(true)}>Explore with demo data</button>
       </div>
+
+      {code && (
+        <div className="modal-back">
+          <div className="modal signin-prompt" role="dialog" aria-label="Finish signing in on GitHub">
+            <Icon name="github" size={28} />
+            <h2>Finish signing in on GitHub</h2>
+            <p className="muted small">GitHub opened in your browser. Paste this code there and approve RepoHub.</p>
+            <div className="user-code">{code.user_code}</div>
+            <div className="small row gap center">
+              {copied ? <><span className="ci ok"><span className="ci-dot"><Icon name="check" size={10} /></span></span> Copied to clipboard</> : "Type this code on the GitHub page"}
+            </div>
+            <div className="row gap center small muted"><Spinner /> Waiting for approval… this window closes by itself.</div>
+            <div className="row gap center">
+              <button className="btn" onClick={() => openUrl(code.verification_uri)}><Icon name="external" /> Open GitHub again</button>
+              <button className="btn ghost" onClick={() => abort.current?.abort()}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

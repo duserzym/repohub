@@ -18,7 +18,7 @@ export interface DeviceCode {
 }
 
 export async function startDeviceFlow(clientId: string): Promise<DeviceCode> {
-  if (!clientId) throw new Error("No GitHub OAuth client ID configured. Add one in Settings or use a token.");
+  if (!clientId) throw new Error("GitHub sign-in isn't set up in this build yet.");
   const res = await httpFetch("https://github.com/login/device/code", {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json" },

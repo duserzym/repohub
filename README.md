@@ -12,7 +12,7 @@ A lightweight, fast dashboard, with a quiet "Ivory & Brass" glass theme (and a "
 
 ## Features
 
-- **GitHub login.** Uses the OAuth device flow, so no client secret ships with the app. You can paste a personal access token instead. The token is kept in the OS keychain (macOS/iOS Keychain, Windows Credential Manager).
+- **GitHub login.** Click **Sign in with GitHub**. A small prompt shows a one-time code (already copied for you), GitHub opens in your browser, and RepoHub signs in by itself once you approve. It uses the OAuth device flow, so no client secret ships in the app. The token is kept in the OS keychain (macOS/iOS Keychain, Windows Credential Manager).
 - **Progress that updates itself.** Polls GitHub every 1–60 minutes (configurable), when the window regains focus, and when you pick "Refresh now" from the tray. For each repo it shows:
   - milestone progress (nearest open milestone) and the share of issues closed
   - open and merged PRs, review state and checks on each PR
@@ -54,8 +54,7 @@ npm run app:build      # installers in src-tauri/target/release/bundle
 1. GitHub → **Settings → Developer settings → OAuth Apps → New OAuth App**.
 2. Homepage URL: `https://github.com/duserzym/repohub`. Callback URL: the same URL (the device flow doesn't use it).
 3. After creating it, tick **Enable Device Flow** and copy the **Client ID**. Do not generate a client secret.
-4. Either put it in `.env` as `VITE_GITHUB_CLIENT_ID=...` (see `.env.example`) or paste it on the login screen.
-   For CI builds, set it as the repository variable `GITHUB_OAUTH_CLIENT_ID`.
+4. Put it in `.env` as `VITE_GITHUB_CLIENT_ID=...` (see `.env.example`) for local builds, and set it as the repository variable `GITHUB_OAUTH_CLIENT_ID` for CI builds. It gets built into the app, so end users only ever see the **Sign in with GitHub** button.
 
 Requested scopes: `repo` (so private repos are included), `read:org`, `read:user`.
 

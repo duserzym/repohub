@@ -283,7 +283,8 @@ code { font-family: var(--mono); font-size: 12px; }
 .login-card { width: min(420px, 100%); padding: 30px; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
 .device { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .user-code { font: 700 30px var(--mono); letter-spacing: 0.12em; padding: 10px 18px; border: 1px dashed var(--line-2); border-radius: 10px; user-select: all; }
-.advanced { width: 100%; text-align: left; display: flex; flex-direction: column; gap: 12px; }
+.signin-prompt { width: min(400px, 100%); align-items: center; text-align: center; gap: 12px; padding: 26px 22px; }
+.signin-prompt h2 { font-size: 17px; }
 .divider { height: 1px; background: var(--line); width: 100%; margin: 6px 0; }
 
 /* tray popover */
