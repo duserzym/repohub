@@ -11,6 +11,29 @@ use tauri::{Emitter, Manager, State};
 
 #[cfg(desktop)]
 mod tray;
+#[cfg(desktop)]
+mod updater;
+
+/// iOS/Android: updates come from the store, so these are inert.
+#[cfg(mobile)]
+mod updater {
+    #[tauri::command]
+    pub async fn update_check(_channel: String) -> Result<Option<()>, String> {
+        Ok(None)
+    }
+    #[tauri::command]
+    pub async fn update_download() -> Result<(), String> {
+        Err("Updates are delivered through the App Store".into())
+    }
+    #[tauri::command]
+    pub async fn update_install() -> Result<(), String> {
+        Err("Updates are delivered through the App Store".into())
+    }
+    #[tauri::command]
+    pub fn update_status() -> Option<()> {
+        None
+    }
+}
 
 const KEYRING_SERVICE: &str = "io.github.duserzym.repohub";
 
@@ -110,7 +133,12 @@ pub(crate) fn show_main<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(desktop)]
+    let builder = builder
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(updater::UpdateState::default());
+    builder
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
@@ -121,7 +149,11 @@ pub fn run() {
             secret_delete,
             update_tray,
             get_tray_summary,
-            show_main_window
+            show_main_window,
+            updater::update_check,
+            updater::update_download,
+            updater::update_install,
+            updater::update_status
         ])
         .setup(|app| {
             #[cfg(desktop)]

@@ -50,7 +50,7 @@ export async function rest<T>(token: string | null, path: string, accept?: strin
 // Repository list (dashboard)
 // ---------------------------------------------------------------------------
 
-const WEEKS = 8;
+export const WEEKS = 12;
 const ICON_DIRS = ["", ".github", "assets", "docs", "images", "public"] as const;
 const treeAlias = (dir: string) => `tree_${dir.replace(/[^a-z]/gi, "") || "root"}`;
 

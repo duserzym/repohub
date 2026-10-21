@@ -14,7 +14,11 @@ use tauri::{
     WebviewWindowBuilder, WindowEvent,
 };
 
+use std::sync::Mutex;
+
 pub const TRAY_ID: &str = "repohub-tray";
+static LAST: Mutex<Option<TraySummary>> = Mutex::new(None);
+static UPDATE_READY: Mutex<Option<String>> = Mutex::new(None);
 pub const POPOVER: &str = "tray";
 const POP_W: f64 = 360.0;
 const POP_H: f64 = 520.0;
@@ -38,6 +42,11 @@ fn build_menu<R: Runtime>(app: &AppHandle<R>, s: Option<&TraySummary>) -> tauri:
         }
     }
     menu.append(&PredefinedMenuItem::separator(app)?)?;
+    if let Some(v) = UPDATE_READY.lock().ok().and_then(|g| g.clone()) {
+        // CodexBar-style inline prompt once an update has been downloaded.
+        menu.append(&MenuItem::with_id(app, "install-update", format!("Update ready (v{v}) — restart now?"), true, None::<&str>)?)?;
+        menu.append(&PredefinedMenuItem::separator(app)?)?;
+    }
     menu.append(&MenuItem::with_id(app, "open", "Open RepoHub", true, None::<&str>)?)?;
     menu.append(&MenuItem::with_id(app, "refresh", "Refresh now", true, None::<&str>)?)?;
     menu.append(&PredefinedMenuItem::separator(app)?)?;
@@ -60,6 +69,11 @@ pub fn setup<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             "open" => show_main(app),
             "refresh" => {
                 let _ = app.emit("tray-refresh", ());
+            }
+            "install-update" => {
+                if let Err(e) = crate::updater::install(app) {
+                    let _ = app.emit("update-error", e);
+                }
             }
             "quit" => app.exit(0),
             _ => {}
@@ -127,7 +141,22 @@ fn toggle_popover<R: Runtime>(app: &AppHandle<R>, rect: Rect) {
     let _ = win.emit("popover-shown", ());
 }
 
+pub fn set_update_ready<R: Runtime>(app: &AppHandle<R>, version: Option<String>) {
+    if let Ok(mut g) = UPDATE_READY.lock() {
+        *g = version;
+    }
+    let last = LAST.lock().ok().and_then(|g| g.clone());
+    if let Some(tray) = app.tray_by_id(TRAY_ID) {
+        if let Ok(menu) = build_menu(app, last.as_ref()) {
+            let _ = tray.set_menu(Some(menu));
+        }
+    }
+}
+
 pub fn apply<R: Runtime>(app: &AppHandle<R>, s: &TraySummary) -> tauri::Result<()> {
+    if let Ok(mut g) = LAST.lock() {
+        *g = Some(s.clone());
+    }
     if let Some(tray) = app.tray_by_id(TRAY_ID) {
         // Title is shown in the macOS menu bar; ignored on Windows.
         tray.set_title(if s.title.is_empty() { None } else { Some(s.title.as_str()) })?;

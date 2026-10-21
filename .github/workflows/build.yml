@@ -46,8 +46,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VITE_GITHUB_CLIENT_ID: ${{ vars.GITHUB_OAUTH_CLIENT_ID }}
+          # Signs update bundles so installed apps can verify and self-update.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          args: ${{ matrix.args }}
+          # tauri.release.conf.json turns on signed updater artifacts (+ latest.json).
+          args: ${{ matrix.args }} --config src-tauri/tauri.release.conf.json
+          includeUpdaterJson: true
+          prerelease: ${{ contains(github.ref_name, '-beta') }}
           # Tag pushes (v*) create a draft GitHub Release with installers attached.
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           releaseName: "RepoHub ${{ github.ref_name }}"

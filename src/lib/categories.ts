@@ -6,7 +6,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
   {
     id: "geochemistry",
     name: "Geochemistry",
-    color: "#d97706",
+    color: "#eb6834",
     keywords: [
       "geochem", "isotope", "isotopic", "tims", "icp-ms", "icpms", "la-icp", "mass-spec", "mass spectrometry",
       "geochron", "u-pb", "upb", "zircon", "ar-ar", "argon", "radiogenic", "petrology", "mineral", "xrf",
@@ -16,7 +16,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
   {
     id: "geophysics",
     name: "Geophysics",
-    color: "#2563eb",
+    color: "#2a78d6",
     keywords: [
       "geophys", "paleomag", "pmag", "magnetic", "magnetism", "seism", "gravity", "geodyn", "geodesy",
       "tectonic", "mantle", "apwp", "paleopole", "gnss", "insar", "magnetotelluric", "geoid",
@@ -24,9 +24,9 @@ export const DEFAULT_CATEGORIES: Category[] = [
   },
 ];
 
-export const CATEGORY_COLORS = [
-  "#2563eb", "#d97706", "#059669", "#7c3aed", "#db2777", "#0891b2", "#65a30d", "#dc2626", "#475569",
-];
+/** Categorical slots in fixed, CVD-validated order (see docs: dataviz palette). */
+export const CATEGORY_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"];
+export const UNCATEGORIZED_COLOR = "#898781";
 
 /** Keyword-based suggestion used when a repo has no manual assignment. */
 export function suggestCategory(repo: Repo, categories: Category[]): string | null {

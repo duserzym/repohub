@@ -71,20 +71,22 @@ export function Sparkline({ values, width = 84, height = 24 }: { values: number[
   );
 }
 
+// Familiar status language everywhere: ✓ green = passing, ◷ amber = running,
+// ✕ red = failing, – gray = no CI. Color is never the only signal.
 const CI: Record<string, { icon: IconName; cls: string; label: string }> = {
-  SUCCESS: { icon: "check", cls: "ok", label: "Checks passing" },
-  FAILURE: { icon: "x", cls: "bad", label: "Checks failing" },
-  ERROR: { icon: "x", cls: "bad", label: "Checks errored" },
-  PENDING: { icon: "clock", cls: "warn", label: "Checks running" },
-  EXPECTED: { icon: "clock", cls: "warn", label: "Checks expected" },
+  SUCCESS: { icon: "check", cls: "ok", label: "Passing" },
+  FAILURE: { icon: "x", cls: "bad", label: "Failing" },
+  ERROR: { icon: "x", cls: "bad", label: "Error" },
+  PENDING: { icon: "clock", cls: "warn", label: "Running" },
+  EXPECTED: { icon: "clock", cls: "warn", label: "Waiting" },
 };
+const NONE = { icon: "minus" as IconName, cls: "none", label: "No CI" };
 
 export function CIBadge({ state, label }: { state: CheckState | string | null; label?: boolean }) {
-  const s = state ? CI[String(state).toUpperCase()] : null;
-  if (!s) return label ? <span className="ci none">No CI</span> : null;
+  const s = (state && CI[String(state).toUpperCase()]) || NONE;
   return (
-    <span className={`ci ${s.cls}`} title={s.label}>
-      <Icon name={s.icon} size={12} />
+    <span className={`ci ${s.cls}`} title={`CI: ${s.label}`} aria-label={`CI ${s.label}`}>
+      <span className="ci-dot"><Icon name={s.icon} size={10} /></span>
       {label && <span>{s.label}</span>}
     </span>
   );

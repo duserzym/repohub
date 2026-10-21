@@ -143,7 +143,7 @@ export function RepoDetail({ nameWithOwner, tab }: { nameWithOwner: string; tab:
                 <Progress pct={(repo.closedIssues / (repo.openIssues + repo.closedIssues)) * 100} thin />
               </>
             )}
-            <h3 className="mt">Weekly commits (8 weeks)</h3>
+            <h3 className="mt">Weekly commits (12 weeks)</h3>
             <Sparkline values={repo.weekly} width={280} height={48} />
           </section>
           <section className="card panel">

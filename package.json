@@ -16,7 +16,8 @@
     "ios:init": "tauri ios init",
     "ios:dev": "tauri ios dev",
     "ios:build": "tauri ios build",
-    "validate:graphql": "node scripts/validate-graphql.mjs"
+    "validate:graphql": "node scripts/validate-graphql.mjs",
+    "updater:setup": "node scripts/setup-updater.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.5",

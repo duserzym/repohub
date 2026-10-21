@@ -1,4 +1,4 @@
-import { categoryOf, UNCATEGORIZED } from "./categories";
+import { categoryOf, UNCATEGORIZED, UNCATEGORIZED_COLOR } from "./categories";
 import { ago, commits30, isOverdue, repoProgress } from "./format";
 import { invoke, isTauri } from "./platform";
 import type { Category, MenuBarStat, Repo } from "./types";
@@ -27,7 +27,7 @@ export interface Summary {
 export function summarize(repos: Repo[], categories: Category[], assignments: Record<string, string>): Summary {
   const month = Date.now() - 30 * 864e5;
   const cats = new Map(
-    [...categories, { id: UNCATEGORIZED, name: "Uncategorized", color: "#94a3b8", keywords: [] }].map((c) => [
+    [...categories, { id: UNCATEGORIZED, name: "Uncategorized", color: UNCATEGORIZED_COLOR, keywords: [] }].map((c) => [
       c.id,
       { id: c.id, name: c.name, color: c.color, repos: 0, openIssues: 0, openPRs: 0, failing: 0 },
     ]),

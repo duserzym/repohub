@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { categoryOf, UNCATEGORIZED } from "../lib/categories";
+import { categoryOf, UNCATEGORIZED, UNCATEGORIZED_COLOR } from "../lib/categories";
 import { useRepos } from "../lib/queries";
 import { href, type Route } from "../lib/router";
 import { useApp } from "../lib/state";
 import { CategoryManager } from "./CategoryManager";
 import { Icon } from "./Icon";
+import { UpdateBanner } from "./UpdateBanner";
 
 export function Sidebar({ route, open, onClose }: { route: Route; open: boolean; onClose(): void }) {
   const { categories, assignments, demo } = useApp();
@@ -54,12 +55,13 @@ export function Sidebar({ route, open, onClose }: { route: Route; open: boolean;
           </a>
         ))}
         <a className={`nav${activeCat === UNCATEGORIZED ? " active" : ""}`} href={href.category(UNCATEGORIZED)}>
-          <span className="dot" style={{ background: "#94a3b8" }} />
+          <span className="dot" style={{ background: UNCATEGORIZED_COLOR }} />
           Uncategorized
           <span className="count">{counts.get(UNCATEGORIZED) ?? 0}</span>
         </a>
 
         <div className="grow" />
+        <UpdateBanner />
         <a className={`nav${is("settings") ? " active" : ""}`} href={href.settings()}>
           <Icon name="settings" /> Settings
         </a>

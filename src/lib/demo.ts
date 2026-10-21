@@ -39,7 +39,7 @@ export function demoRepos(): RepoListResult {
   const repos: Repo[] = SPECS.map(([name, description, topics, lang, color], i) => {
     const open = Math.floor(r() * 25);
     const closed = Math.floor(r() * 60) + 2;
-    const weekly = Array.from({ length: 8 }, () => Math.floor(r() * (i < 6 ? 14 : 5)));
+    const weekly = Array.from({ length: 12 }, () => Math.floor(r() * (i < 6 ? 14 : 5)));
     const pushed = new Date(now - r() * (i < 8 ? 9 : 120) * 864e5).toISOString();
     const hasMs = r() > 0.35;
     const msOpen = Math.floor(r() * 8);

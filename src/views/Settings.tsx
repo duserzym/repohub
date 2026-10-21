@@ -1,6 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { Icon } from "../components/Icon";
 import { clearIconMemory } from "../lib/icons";
+import { checkForUpdates, downloadUpdate, installUpdate, updatesSupported, useUpdateStatus } from "../lib/updater";
 import { isTauri } from "../lib/platform";
 import { useRepos } from "../lib/queries";
 import { DEFAULT_SETTINGS, useApp } from "../lib/state";
@@ -80,6 +82,8 @@ export function Settings() {
         {!isTauri && <p className="small muted">The tray item appears when running the desktop app.</p>}
       </section>
 
+      <UpdatesSection settings={settings} set={set} />
+
       <section className="card panel form">
         <h3>Appearance</h3>
         <label className="field row between">
@@ -103,7 +107,52 @@ export function Settings() {
           <button className="btn ghost" onClick={() => update("settings", { ...DEFAULT_SETTINGS, clientId: settings.clientId })}>Reset settings</button>
         </div>
       </section>
-      <p className="small muted center">RepoHub 0.1.0</p>
     </div>
+  );
+}
+
+function UpdatesSection({ settings, set }: { settings: S; set(p: Partial<S>): void }) {
+  const u = useUpdateStatus();
+  const [version, setVersion] = useState(__APP_VERSION__);
+  useEffect(() => {
+    if (isTauri) import("@tauri-apps/api/app").then(({ getVersion }) => getVersion().then(setVersion)).catch(() => {});
+  }, []);
+  const line =
+    u.kind === "checking" ? "Checking for updates…"
+    : u.kind === "none" ? `You're up to date · checked ${new Date(u.checkedAt).toLocaleTimeString()}`
+    : u.kind === "available" ? `Version ${u.info.version} is available`
+    : u.kind === "downloading" ? `Downloading ${u.info.version}${u.pct != null ? ` · ${u.pct}%` : "…"}`
+    : u.kind === "ready" ? `Version ${u.info.version} is ready to install`
+    : u.kind === "installing" ? "Installing and restarting…"
+    : u.kind === "error" ? `Update check failed: ${u.message}`
+    : "Checks run automatically in the background.";
+  const info = "info" in u ? u.info : null;
+  return (
+    <section className="card panel form">
+      <h3>Updates</h3>
+      <div className="row between wrap gap">
+        <div>
+          <div><strong>RepoHub {version}</strong></div>
+          <div className={`small ${u.kind === "error" ? "bad-c" : "muted"}`}>{updatesSupported ? line : "Updates install from the App Store on iOS, and from the desktop app on Mac and Windows."}</div>
+        </div>
+        {updatesSupported && (
+          <div className="row gap">
+            {u.kind === "available" && <button className="btn" onClick={() => downloadUpdate()}>Download</button>}
+            {(u.kind === "ready" || u.kind === "installing") && <button className="btn primary" disabled={u.kind === "installing"} onClick={() => installUpdate()}>Restart to update</button>}
+            <button className="btn" disabled={u.kind === "checking" || u.kind === "downloading"} onClick={() => checkForUpdates(settings.updateChannel, settings.autoUpdate)}>Check for updates</button>
+          </div>
+        )}
+      </div>
+      {u.kind === "downloading" && <div className="progress thin"><div style={{ width: `${u.pct ?? 30}%` }} /></div>}
+      {info?.notes && <div className="release-notes small"><strong>What's new in {info.version}</strong><p>{info.notes}</p></div>}
+      <label className="check"><input type="checkbox" checked={settings.autoUpdate} onChange={(e) => set({ autoUpdate: e.target.checked })} /> Download updates automatically</label>
+      <label className="field row between">
+        <span>Update channel</span>
+        <select className="input" value={settings.updateChannel} onChange={(e) => set({ updateChannel: e.target.value as S["updateChannel"] })}>
+          <option value="stable">Stable</option>
+          <option value="beta">Beta (pre-releases)</option>
+        </select>
+      </label>
+    </section>
   );
 }

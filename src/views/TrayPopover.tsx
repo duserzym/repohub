@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Icon } from "../components/Icon";
 import { ago } from "../lib/format";
 import { invoke, isTauri, listen } from "../lib/platform";
+import { readyUpdateFromNative, type UpdateInfo } from "../lib/updater";
 import { summarize, type Summary } from "../lib/summary";
 import { demoRepos } from "../lib/demo";
 import { DEFAULT_CATEGORIES } from "../lib/categories";
@@ -35,6 +36,15 @@ export function TrayPopover() {
     };
   }, []);
 
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  useEffect(() => {
+    readyUpdateFromNative().then(setUpdate);
+    let off = () => {};
+    listen<UpdateInfo>("update-ready", setUpdate).then((f) => (off = f));
+    return () => off();
+  }, []);
+  const restart = () => invoke("update_install");
+
   const open = (route?: string) => invoke("show_main_window", { route: route ?? null });
   const refresh = () => {
     if (!isTauri) return;
@@ -56,6 +66,12 @@ export function TrayPopover() {
         <strong className="row gap"><img src="/icon.svg" width={18} height={18} alt="" /> RepoHub</strong>
         <span className="small muted">synced {ago(p.fetchedAt)}</span>
       </header>
+      {update && (
+        <button className="tray-update" onClick={restart}>
+          <Icon name="refresh" size={13} />
+          <span className="grow">Update ready (v{update.version}) — restart now?</span>
+        </button>
+      )}
       <div className="tray-stats">
         <div><b>{s.openIssues}</b><span>issues</span></div>
         <div><b>{s.openPRs}</b><span>PRs</span></div>

@@ -5,6 +5,7 @@ import { Login } from "./components/Login";
 import { Sidebar } from "./components/Sidebar";
 import { listen } from "./lib/platform";
 import { useTraySync } from "./lib/queries";
+import { useUpdateScheduler } from "./lib/updater";
 import { navigate, useRoute } from "./lib/router";
 import { useApp } from "./lib/state";
 import { Dashboard } from "./views/Dashboard";
@@ -27,6 +28,7 @@ function Shell() {
   const route = useRoute();
   const [navOpen, setNavOpen] = useState(false);
   useTraySync();
+  useUpdateScheduler();
 
   // The tray popover asks the main window to show a route.
   useEffect(() => {

@@ -36,7 +36,22 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "macOS": { "minimumSystemVersion": "11.0" },
-    "iOS": { "minimumSystemVersion": "15.0" }
+    "macOS": {
+      "minimumSystemVersion": "11.0"
+    },
+    "iOS": {
+      "minimumSystemVersion": "15.0"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "RUN_npm_run_updater:setup_TO_SET_YOUR_PUBLIC_KEY",
+      "endpoints": [
+        "https://github.com/duserzym/repohub/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

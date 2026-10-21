@@ -14,6 +14,8 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: "system",
   clientId: DEFAULT_CLIENT_ID,
   sort: "pushed",
+  autoUpdate: true,
+  updateChannel: "stable",
 };
 
 interface Persisted {

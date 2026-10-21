@@ -2,8 +2,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Empty, Progress, Spinner, Stat } from "../components/bits";
 import { Icon } from "../components/Icon";
+import { Insights } from "../components/Insights";
 import { RepoCard, RepoRow } from "../components/RepoCard";
-import { categoryOf, UNCATEGORIZED } from "../lib/categories";
+import { categoryOf, UNCATEGORIZED, UNCATEGORIZED_COLOR } from "../lib/categories";
 import { ago, commits30, repoProgress } from "../lib/format";
 import { useRepos } from "../lib/queries";
 import { href } from "../lib/router";
@@ -74,7 +75,7 @@ export function Dashboard({ category }: { category: string | null }) {
     );
 
   const sections = !category && !filter
-    ? [...categories, { id: UNCATEGORIZED, name: "Uncategorized", color: "#94a3b8", keywords: [] }]
+    ? [...categories, { id: UNCATEGORIZED, name: "Uncategorized", color: UNCATEGORIZED_COLOR, keywords: [] }]
         .map((c) => ({ c, items: repos.filter((r) => categoryOf(r, categories, assignments).id === c.id) }))
         .filter((x) => x.items.length)
     : null;
@@ -119,11 +120,13 @@ export function Dashboard({ category }: { category: string | null }) {
           <Stat icon="folder" label="Repositories" value={s.repos} />
           <Stat icon="issue" label="Open issues" value={s.openIssues} sub={`${s.closedIssues} closed`} />
           <Stat icon="pr" label="Open PRs" value={s.openPRs} />
-          <Stat icon="play" label="CI" value={s.failingCI ? `${s.failingCI} failing` : "All green"} tone={s.failingCI ? "bad" : "ok"} sub={`${s.passingCI} passing`} />
+          <Stat icon={s.failingCI ? "x" : "check"} label="CI" value={s.failingCI ? `${s.failingCI} failing` : "All passing"} tone={s.failingCI ? "bad" : "ok"} sub={`✓ ${s.passingCI} passing`} />
           <Stat icon="activity" label="Commits · 30d" value={s.commits30} />
           <Stat icon="milestone" label="Avg progress" value={s.avgProgress != null ? `${s.avgProgress}%` : "—"} sub={`${s.releases30} releases this month`} />
         </div>
       )}
+
+      {data && repos.length > 0 && !filter && <Insights repos={repos} fetchedAt={data.fetchedAt} scoped={!!category} />}
 
       {!category && s && !filter && (
         <div className="panels">
@@ -133,7 +136,10 @@ export function Dashboard({ category }: { category: string | null }) {
               <ul className="feed">
                 {s.attention.slice(0, 6).map((a, i) => (
                   <li key={i}>
-                    <span className={`pill ${a.kind}`}>{a.kind === "ci" ? "CI" : a.kind === "overdue" ? "Due" : "PRs"}</span>
+                    <span className={`pill ${a.kind}`}>
+                      <Icon name={a.kind === "ci" ? "x" : a.kind === "overdue" ? "clock" : "pr"} size={11} />
+                      {a.kind === "ci" ? "Failing" : a.kind === "overdue" ? "Overdue" : "Review"}
+                    </span>
                     <a href={href.repo(a.repo, a.kind === "ci" ? "actions" : a.kind === "prs" ? "pulls" : "milestones")}>
                       <strong>{a.repo.split("/")[1]}</strong> <span className="muted">{a.text}</span>
                     </a>

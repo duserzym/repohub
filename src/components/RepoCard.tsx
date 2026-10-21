@@ -1,4 +1,4 @@
-import { categoryOf, UNCATEGORIZED } from "../lib/categories";
+import { categoryOf, UNCATEGORIZED, UNCATEGORIZED_COLOR } from "../lib/categories";
 import { ago, commits30, num, repoProgress } from "../lib/format";
 import { href, navigate } from "../lib/router";
 import { useApp } from "../lib/state";
@@ -54,7 +54,7 @@ export function RepoCard({ repo }: { repo: Repo }) {
         if (!(e.target as HTMLElement).closest("select,button,a")) navigate(href.repo(repo.nameWithOwner));
       }}
       onKeyDown={(e) => e.key === "Enter" && e.target === e.currentTarget && navigate(href.repo(repo.nameWithOwner))}
-      style={{ ["--cat" as string]: cat?.color ?? "#94a3b8" }}
+      style={{ ["--cat" as string]: cat?.color ?? UNCATEGORIZED_COLOR }}
     >
       <div className="repo-head">
         <RepoIcon repo={repo} size={40} />
@@ -137,7 +137,7 @@ export function RepoRow({ repo }: { repo: Repo }) {
         <strong>{repo.name}</strong>
         <span className="muted small truncate">{repo.description}</span>
       </div>
-      <span className="cat-dot" style={{ background: cat?.color ?? "#94a3b8" }} title={cat?.name ?? "Uncategorized"} />
+      <span className="cat-dot" style={{ background: cat?.color ?? UNCATEGORIZED_COLOR }} title={cat?.name ?? "Uncategorized"} />
       <div className="repo-row-prog">{prog ? <Progress pct={prog.pct} color={cat?.color} thin /> : <span className="muted small">—</span>}</div>
       <span className="num" title="Open issues">
         <Icon name="issue" size={13} /> {repo.openIssues}

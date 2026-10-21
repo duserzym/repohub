@@ -36,7 +36,7 @@ export interface Repo {
   defaultBranch: string | null;
   lastCommit: { oid: string; date: string; message: string } | null;
   ci: CheckState;
-  /** Commits per week, oldest → newest (8 weeks). */
+  /** Commits per week, oldest → newest (12 weeks). */
   weekly: number[];
   /** Candidate icon files found in the repo tree, best first. */
   iconPaths: string[];
@@ -79,6 +79,8 @@ export interface Settings {
   theme: "system" | "light" | "dark";
   clientId: string;
   sort: "pushed" | "name" | "progress" | "issues" | "stars";
+  autoUpdate: boolean;
+  updateChannel: "stable" | "beta";
 }
 
 export interface Viewer {
