@@ -106,12 +106,16 @@ export function demoDetail(repo: Repo): RepoDetail {
       { name: "Markdown", color: "#083fa1", size: 3000 },
     ],
     issues: Array.from({ length: Math.min(repo.openIssues, 8) }, (_, i) => ({
+      kind: "issue" as const, repo: repo.nameWithOwner, updatedAt: d(i), authorAvatar: null,
+      body: ["Steps to reproduce: load the sample run, open the ratio plot and switch to the 2σ view.", "", "Would be great to have this before the next field season."][i % 3],
       number: 40 - i, title: ["Support new spike file format", "Plot fails with NaN ratios", "Document calibration steps", "Add export to CSV", "Slow on large runs"][i % 5],
       url: "https://github.com/", createdAt: d(r() * 60), author: "demo-user", comments: Math.floor(r() * 6),
       labels: i % 2 ? [{ name: "bug", color: "d73a4a" }] : [{ name: "enhancement", color: "a2eeef" }], assignees: i % 3 ? ["demo-user"] : [],
     })),
     pulls: Array.from({ length: repo.openPRs }, (_, i) => ({
-      number: 60 - i, title: ["Refactor reader", "Add tests", "Dark mode"][i % 3], url: "https://github.com/", createdAt: d(r() * 20),
+      kind: "pr" as const, repo: repo.nameWithOwner, updatedAt: d(i * 0.5), authorAvatar: null, labels: [], comments: i * 2, assignees: [],
+      body: ["Splits the file reader into smaller functions and adds type hints.", "Adds unit tests for the blank correction.", "Work in progress."][i % 3],
+      number: 60 - i, title: ["Refactor reader", "Add tests for blank correction", "Dark mode for plots", "Speed up isotope fit", "Export to Excel"][(i + repo.name.length) % 5], url: "https://github.com/", createdAt: d(r() * 20),
       author: "collaborator", isDraft: i === 2, review: i === 0 ? "APPROVED" : "REVIEW_REQUIRED", checks: i === 1 ? "FAILURE" : "SUCCESS",
       additions: Math.floor(r() * 400), deletions: Math.floor(r() * 120),
     })),

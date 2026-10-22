@@ -48,6 +48,7 @@ fn build_menu<R: Runtime>(app: &AppHandle<R>, s: Option<&TraySummary>) -> tauri:
         menu.append(&PredefinedMenuItem::separator(app)?)?;
     }
     menu.append(&MenuItem::with_id(app, "open", "Open RepoHub", true, None::<&str>)?)?;
+    menu.append(&MenuItem::with_id(app, "new-idea", "New Idea…", true, None::<&str>)?)?;
     menu.append(&MenuItem::with_id(app, "refresh", "Refresh now", true, None::<&str>)?)?;
     menu.append(&MenuItem::with_id(app, "check-updates", "Check for Updates…", true, None::<&str>)?)?;
     menu.append(&MenuItem::with_id(app, "reload", "Reload Window", true, None::<&str>)?)?;
@@ -69,6 +70,10 @@ pub fn setup<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "open" => show_main(app),
+            "new-idea" => {
+                show_main(app);
+                let _ = app.emit_to("main", "navigate", "#/ideas/_new");
+            }
             "refresh" => {
                 let _ = app.emit("tray-refresh", ());
             }

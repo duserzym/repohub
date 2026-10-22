@@ -1,9 +1,12 @@
 import { categoryOf, UNCATEGORIZED, UNCATEGORIZED_COLOR } from "../lib/categories";
 import { ago, commits30, num, repoProgress } from "../lib/format";
+import { useState } from "react";
+import { useOpenItems } from "../lib/items";
 import { href, navigate } from "../lib/router";
 import { useApp } from "../lib/state";
 import type { Repo } from "../lib/types";
-import { CIBadge, Progress, RepoIcon, Sparkline } from "./bits";
+import { CIBadge, ExtLink, Progress, RepoIcon, Sparkline, Spinner } from "./bits";
+import { ItemList } from "./ItemList";
 import { Icon } from "./Icon";
 
 export function CategorySelect({ repo }: { repo: Repo }) {
@@ -38,20 +41,62 @@ export function CategorySelect({ repo }: { repo: Repo }) {
   );
 }
 
+type Peek = "issues" | "prs" | "ci";
+
+/** A quick look at a card's open issues / PRs / CI, underneath the metrics. */
+function CardPeek({ repo, kind }: { repo: Repo; kind: Peek }) {
+  const q = useOpenItems(kind === "prs" ? "pr" : "issue", [repo], kind !== "ci", 5);
+  const tab = kind === "prs" ? "pulls" : kind === "issues" ? "issues" : "actions";
+  const total = kind === "prs" ? repo.openPRs : repo.openIssues;
+  return (
+    <div className="peek" onClick={(e) => e.stopPropagation()}>
+      {kind === "ci" ? (
+        <div className="small">
+          {repo.ciFailing?.length ? (
+            <>
+              <div className="bad-c strong">Failing checks</div>
+              <ul className="peek-list">{repo.ciFailing.map((f) => <li key={f}><Icon name="x" size={11} className="bad-c" /> {f}</li>)}</ul>
+            </>
+          ) : (
+            <div className="muted">{repo.ci === "SUCCESS" ? "All checks passed" : repo.ci === "PENDING" || repo.ci === "EXPECTED" ? "Checks are running" : "No checks on the latest commit"}{repo.lastCommit ? ` on “${repo.lastCommit.message}”` : ""}.</div>
+          )}
+          <div className="row gap mt-s">
+            <a className="btn small" href={href.repo(repo.nameWithOwner, "actions")}>Workflow runs</a>
+            <ExtLink className="btn small ghost" url={`${repo.url}/actions`}><Icon name="external" size={12} /> Actions on GitHub</ExtLink>
+          </div>
+        </div>
+      ) : q.isLoading ? (
+        <div className="row gap small muted"><Spinner /> Loading…</div>
+      ) : q.error ? (
+        <p className="error small">{(q.error as Error).message}</p>
+      ) : (
+        <>
+          <ItemList items={q.data ?? []} showRepo={false} compact />
+          {total > (q.data?.length ?? 0) && (
+            <a className="link small" href={href.repo(repo.nameWithOwner, tab)}>All {total} {kind === "prs" ? "pull requests" : "issues"} →</a>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export function RepoCard({ repo }: { repo: Repo }) {
   const { categories, assignments, pinned, update } = useApp();
   const cat = categories.find((c) => c.id === categoryOf(repo, categories, assignments).id);
   const prog = repoProgress(repo);
   const isPinned = pinned.includes(repo.nameWithOwner);
+  const [peek, setPeek] = useState<Peek | null>(null);
+  const toggle = (k: Peek) => setPeek((p) => (p === k ? null : k));
 
   return (
     <div
-      className="card repo-card"
+      className={`card repo-card${peek ? " peeking" : ""}`}
       role="link"
       tabIndex={0}
       aria-label={repo.nameWithOwner}
       onClick={(e) => {
-        if (!(e.target as HTMLElement).closest("select,button,a")) navigate(href.repo(repo.nameWithOwner));
+        if (!(e.target as HTMLElement).closest("select,button,a,.peek")) navigate(href.repo(repo.nameWithOwner));
       }}
       onKeyDown={(e) => e.key === "Enter" && e.target === e.currentTarget && navigate(href.repo(repo.nameWithOwner))}
       style={{ ["--cat" as string]: cat?.color ?? UNCATEGORIZED_COLOR }}
@@ -100,21 +145,25 @@ export function RepoCard({ repo }: { repo: Repo }) {
       </div>
 
       <div className="repo-metrics">
-        <span title="Open issues">
+        <button type="button" className={`metric${peek === "issues" ? " on" : ""}`} title="Open issues — click to peek" aria-expanded={peek === "issues"} onClick={() => toggle("issues")} disabled={!repo.openIssues}>
           <Icon name="issue" size={13} /> {repo.openIssues}
-        </span>
-        <span title="Open pull requests">
+        </button>
+        <button type="button" className={`metric${peek === "prs" ? " on" : ""}`} title="Open pull requests — click to peek" aria-expanded={peek === "prs"} onClick={() => toggle("prs")} disabled={!repo.openPRs}>
           <Icon name="pr" size={13} /> {repo.openPRs}
-        </span>
+        </button>
         <span title="Stars">
           <Icon name="star" size={13} /> {num(repo.stars)}
         </span>
-        <CIBadge state={repo.ci} failing={repo.ciFailing} />
+        <button type="button" className={`metric${peek === "ci" ? " on" : ""}`} title="CI — click for details" aria-expanded={peek === "ci"} onClick={() => toggle("ci")} disabled={!repo.ci}>
+          <CIBadge state={repo.ci} failing={repo.ciFailing} />
+        </button>
         <span className="grow" />
         <span title={`${commits30(repo)} commits in the last 4 weeks`}>
           <Sparkline values={repo.weekly} width={64} height={20} />
         </span>
       </div>
+
+      {peek && <CardPeek repo={repo} kind={peek} />}
 
       <div className="repo-foot">
         {repo.language && (
@@ -131,6 +180,12 @@ export function RepoCard({ repo }: { repo: Repo }) {
   );
 }
 
+const go = (nwo: string, tab: string) => (e: React.MouseEvent) => {
+  e.preventDefault();
+  e.stopPropagation();
+  navigate(href.repo(nwo, tab));
+};
+
 export function RepoRow({ repo }: { repo: Repo }) {
   const { categories, assignments } = useApp();
   const cat = categories.find((c) => c.id === categoryOf(repo, categories, assignments).id);
@@ -144,13 +199,13 @@ export function RepoRow({ repo }: { repo: Repo }) {
       </div>
       <span className="cat-dot" style={{ background: cat?.color ?? UNCATEGORIZED_COLOR }} title={cat?.name ?? "Uncategorized"} />
       <div className="repo-row-prog">{prog ? <Progress pct={prog.pct} color={cat?.color} thin /> : <span className="muted small">—</span>}</div>
-      <span className="num" title="Open issues">
+      <span className="num link-ish" title="Open issues" onClick={go(repo.nameWithOwner, "issues")}>
         <Icon name="issue" size={13} /> {repo.openIssues}
       </span>
-      <span className="num" title="Open PRs">
+      <span className="num link-ish" title="Open PRs" onClick={go(repo.nameWithOwner, "pulls")}>
         <Icon name="pr" size={13} /> {repo.openPRs}
       </span>
-      <CIBadge state={repo.ci} failing={repo.ciFailing} />
+      <span className="link-ish" onClick={go(repo.nameWithOwner, "actions")}><CIBadge state={repo.ci} failing={repo.ciFailing} /></span>
       <Sparkline values={repo.weekly} width={56} height={18} />
       <span className="muted small when">{ago(repo.pushedAt)}</span>
     </a>

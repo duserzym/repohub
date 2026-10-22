@@ -11,6 +11,7 @@ import { useUpdateScheduler } from "./lib/updater";
 import { navigate, useRoute } from "./lib/router";
 import { useApp } from "./lib/state";
 import { Dashboard } from "./views/Dashboard";
+import type { DrillKind } from "./components/Drilldown";
 import { Discover } from "./views/Discover";
 import { RepoDetail } from "./views/RepoDetail";
 import { Settings } from "./views/Settings";
@@ -53,7 +54,7 @@ function Shell() {
           <strong>RepoHub</strong>
         </div>
         <ErrorBoundary where={`view:${route.view}`} resetKey={location.hash}>
-          {route.view === "dashboard" && <Dashboard category={route.category} />}
+          {route.view === "dashboard" && <Dashboard category={route.category} drill={(route.drill as DrillKind | null | undefined) ?? null} />}
           {route.view === "repo" && <RepoDetail key={route.nameWithOwner} nameWithOwner={route.nameWithOwner} tab={route.tab} />}
           {route.view === "discover" && <Discover />}
           {route.view === "teams" && <Teams />}

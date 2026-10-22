@@ -78,10 +78,10 @@ export function TrayPopover() {
         </button>
       )}
       <div className="tray-stats">
-        <div><b>{s.openIssues}</b><span>issues</span></div>
-        <div><b>{s.openPRs}</b><span>PRs</span></div>
-        <div className={s.failingCI ? "bad-c" : "ok-c"}><b>{s.failingCI || "✓"}</b><span>{s.failingCI ? "failing" : "CI green"}</span></div>
-        <div><b>{s.commits30}</b><span>commits 30d</span></div>
+        <button onClick={() => open("#/drill/issues")} title="Show open issues"><b>{s.openIssues}</b><span>issues</span></button>
+        <button onClick={() => open("#/drill/prs")} title="Show open pull requests"><b>{s.openPRs}</b><span>PRs</span></button>
+        <button className={s.failingCI ? "bad-c" : "ok-c"} onClick={() => open("#/drill/ci")} title="Show CI status"><b>{s.failingCI || "✓"}</b><span>{s.failingCI ? "failing" : "CI green"}</span></button>
+        <button onClick={() => open("#/drill/commits")} title="Show recent commits"><b>{s.commits30}</b><span>commits 30d</span></button>
       </div>
       {s.avgProgress != null && (
         <div className="small">

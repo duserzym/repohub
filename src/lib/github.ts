@@ -1,5 +1,6 @@
 import { httpFetch } from "./platform";
 import type { CheckState, Repo, SearchResult, Settings, Viewer } from "./types";
+import { ITEM_FRAGMENTS, mapItem, type WorkItem } from "./workitems";
 
 const API = "https://api.github.com";
 
@@ -491,8 +492,8 @@ async function fetchTrackedLight(token: string, names: string[]): Promise<any[]>
 
 export interface RepoDetail {
   languages: { name: string; color: string; size: number }[];
-  issues: { number: number; title: string; url: string; createdAt: string; author: string; comments: number; labels: { name: string; color: string }[]; assignees: string[] }[];
-  pulls: { number: number; title: string; url: string; createdAt: string; author: string; isDraft: boolean; review: string | null; checks: CheckState; additions: number; deletions: number }[];
+  issues: WorkItem[];
+  pulls: WorkItem[];
   milestones: { title: string; url: string; state: string; dueOn: string | null; progress: number; open: number; closed: number; description: string }[];
   commits: { oid: string; message: string; url: string; date: string; author: string; avatar: string | null; checks: CheckState }[];
   releases: { name: string; tag: string; url: string; publishedAt: string; isPrerelease: boolean; isLatest: boolean }[];
@@ -504,12 +505,8 @@ const DETAIL_QUERY = `
 query Detail($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
     languages(first: 8, orderBy: {field: SIZE, direction: DESC}) { edges { size node { name color } } }
-    issues(states: OPEN, first: 40, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes {
-      number title url createdAt author { login } comments { totalCount }
-      labels(first: 5) { nodes { name color } } assignees(first: 3) { nodes { login } } } }
-    pullRequests(states: OPEN, first: 30, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes {
-      number title url createdAt isDraft reviewDecision additions deletions author { login }
-      commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } }
+    issues(states: OPEN, first: 40, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { ...IssueItem } }
+    pullRequests(states: OPEN, first: 30, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { ...PRItem } }
     milestones(first: 20, orderBy: {field: DUE_DATE, direction: ASC}) { nodes {
       title url state dueOn description progressPercentage
       open: issues(states: OPEN) { totalCount } closed: issues(states: CLOSED) { totalCount } } }
@@ -519,7 +516,8 @@ query Detail($owner: String!, $name: String!) {
       oid messageHeadline url committedDate statusCheckRollup { state }
       author { name avatarUrl user { login } } } } } } }
   }
-}`;
+}
+${ITEM_FRAGMENTS}`;
 
 export async function fetchRepoDetail(token: string, nameWithOwner: string): Promise<RepoDetail> {
   const [owner, name] = nameWithOwner.split("/");
@@ -531,15 +529,8 @@ export async function fetchRepoDetail(token: string, nameWithOwner: string): Pro
   const hist = r.defaultBranchRef?.target?.history;
   return {
     languages: (r.languages?.edges ?? []).map((e: any) => ({ name: e.node.name, color: e.node.color ?? "#888", size: e.size })),
-    issues: r.issues.nodes.map((i: any) => ({
-      number: i.number, title: i.title, url: i.url, createdAt: i.createdAt, author: i.author?.login ?? "ghost",
-      comments: i.comments.totalCount, labels: i.labels.nodes, assignees: i.assignees.nodes.map((a: any) => a.login),
-    })),
-    pulls: r.pullRequests.nodes.map((p: any) => ({
-      number: p.number, title: p.title, url: p.url, createdAt: p.createdAt, author: p.author?.login ?? "ghost",
-      isDraft: p.isDraft, review: p.reviewDecision, additions: p.additions, deletions: p.deletions,
-      checks: p.commits.nodes[0]?.commit.statusCheckRollup?.state ?? null,
-    })),
+    issues: (r.issues?.nodes ?? []).map((i: any) => mapItem(i, "issue", nameWithOwner)),
+    pulls: (r.pullRequests?.nodes ?? []).map((p: any) => mapItem(p, "pr", nameWithOwner)),
     milestones: r.milestones.nodes.map((m: any) => ({
       title: m.title, url: m.url, state: m.state, dueOn: m.dueOn, description: m.description ?? "",
       progress: Math.round(m.progressPercentage ?? 0), open: m.open.totalCount, closed: m.closed.totalCount,

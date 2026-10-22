@@ -1,8 +1,9 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Empty, Progress, Spinner, Stat } from "../components/bits";
 import { Icon } from "../components/Icon";
 import { Insights } from "../components/Insights";
+import { Drilldown, type DrillKind } from "../components/Drilldown";
 import { RepoCard, RepoRow } from "../components/RepoCard";
 import { categoryOf, UNCATEGORIZED, UNCATEGORIZED_COLOR } from "../lib/categories";
 import { ago, commits30, repoProgress } from "../lib/format";
@@ -28,7 +29,7 @@ const SORTS: Record<Settings["sort"], (a: Repo, b: Repo) => number> = {
   stars: (a, b) => b.stars - a.stars,
 };
 
-export function Dashboard({ category }: { category: string | null }) {
+export function Dashboard({ category, drill: initialDrill = null }: { category: string | null; drill?: DrillKind | null }) {
   const app = useApp();
   const { categories, assignments, pinned, settings, update } = app;
   const { data, isLoading, isFetching, error, summary } = useRepos();
@@ -37,6 +38,32 @@ export function Dashboard({ category }: { category: string | null }) {
   const pending = !!data?.repos.some((r) => r.enriched === false);
   const qc = useQueryClient();
   const [filter, setFilter] = useState("");
+  const [drill, setDrill] = useState<DrillKind | null>(initialDrill);
+  const toggle = (k: DrillKind) => setDrill((d) => (d === k ? null : k));
+  const filterRef = useRef<HTMLInputElement>(null);
+  useEffect(() => setDrill(initialDrill), [initialDrill]);
+
+  // Keyboard: "/" filters, "r" refreshes, Esc closes the details panel.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement;
+      const typing = el.closest("input, textarea, select, [contenteditable]");
+      if (e.key === "Escape") {
+        if (typing && el === filterRef.current && filter) setFilter("");
+        else setDrill(null);
+        return;
+      }
+      if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === "/") {
+        e.preventDefault();
+        filterRef.current?.focus();
+      } else if (e.key === "r") {
+        void qc.invalidateQueries({ queryKey: ["repos"] });
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [filter, qc]);
   const [mode, setMode] = useState<"grid" | "list">(() => pref("view-mode", "grid") as "grid" | "list");
   const setModeP = (m: "grid" | "list") => {
     setMode(m);
@@ -109,7 +136,8 @@ export function Dashboard({ category }: { category: string | null }) {
         <div className="toolbar">
           <div className="search-box">
             <Icon name="search" size={14} />
-            <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter repositories" aria-label="Filter repositories" />
+            <input ref={filterRef} value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter repositories  ( / )" aria-label="Filter repositories" />
+            {filter && <button className="icon-btn tiny" onClick={() => setFilter("")} aria-label="Clear filter"><Icon name="x" size={12} /></button>}
           </div>
           <select className="input" value={settings.sort} onChange={(e) => update("settings", (x) => ({ ...x, sort: e.target.value as Settings["sort"] }))} aria-label="Sort">
             <option value="pushed">Recently pushed</option>
@@ -122,7 +150,7 @@ export function Dashboard({ category }: { category: string | null }) {
             <button className={mode === "grid" ? "on" : ""} onClick={() => setModeP("grid")} aria-label="Grid view"><Icon name="grid" /></button>
             <button className={mode === "list" ? "on" : ""} onClick={() => setModeP("list")} aria-label="List view"><Icon name="list" /></button>
           </div>
-          <button className="btn" onClick={() => qc.invalidateQueries({ queryKey: ["repos"] })} disabled={isFetching} title="Refresh now">
+          <button className="btn" onClick={() => qc.invalidateQueries({ queryKey: ["repos"] })} disabled={isFetching} title="Refresh now (R)">
             <Icon name="refresh" className={isFetching ? "spin" : ""} />
             <span className="hide-sm">Refresh</span>
           </button>
@@ -131,9 +159,9 @@ export function Dashboard({ category }: { category: string | null }) {
 
       {s && (
         <div className="stats">
-          <Stat icon="folder" label="Repositories" value={s.repos} />
-          <Stat icon="issue" label="Open issues" value={s.openIssues} sub={`${s.closedIssues} closed`} />
-          <Stat icon="pr" label="Open PRs" value={s.openPRs} />
+          <Stat icon="folder" label="Repositories" value={s.repos} onClick={() => toggle("repos")} active={drill === "repos"} />
+          <Stat icon="issue" label="Open issues" value={s.openIssues} sub={`${s.closedIssues} closed`} onClick={() => toggle("issues")} active={drill === "issues"} />
+          <Stat icon="pr" label="Open PRs" value={s.openPRs} sub={s.openPRs ? "click to review" : undefined} onClick={() => toggle("prs")} active={drill === "prs"} />
           {pending ? (
             <>
               <Stat icon="clock" label="CI" value="…" sub="loading" />
@@ -142,12 +170,22 @@ export function Dashboard({ category }: { category: string | null }) {
             </>
           ) : (
             <>
-              <Stat icon={s.failingCI ? "x" : "check"} label="CI" value={s.failingCI ? `${s.failingCI} failing` : "All passing"} tone={s.failingCI ? "bad" : "ok"} sub={`✓ ${s.passingCI} passing`} />
-              <Stat icon="activity" label="Commits · 30d" value={s.commits30} />
-              <Stat icon="milestone" label="Avg progress" value={s.avgProgress != null ? `${s.avgProgress}%` : "—"} sub={`${s.releases30} releases this month`} />
+              <Stat icon={s.failingCI ? "x" : "check"} label="CI" value={s.failingCI ? `${s.failingCI} failing` : "All passing"} tone={s.failingCI ? "bad" : "ok"} sub={`✓ ${s.passingCI} passing`} onClick={() => toggle("ci")} active={drill === "ci"} />
+              <Stat icon="activity" label="Commits · 30d" value={s.commits30} onClick={() => toggle("commits")} active={drill === "commits"} />
+              <Stat icon="milestone" label="Avg progress" value={s.avgProgress != null ? `${s.avgProgress}%` : "—"} sub={`${s.releases30} releases this month`} onClick={() => toggle("progress")} active={drill === "progress"} />
             </>
           )}
         </div>
+      )}
+
+      {drill && data && (
+        <Drilldown
+          kind={drill}
+          repos={repos}
+          login={data.viewer?.login ?? ""}
+          onClose={() => setDrill(null)}
+          onFilter={(t) => { setFilter(t); setDrill(null); }}
+        />
       )}
 
       {data && repos.length > 0 && !filter && <Insights repos={repos} fetchedAt={data.fetchedAt} scoped={!!category} pending={pending} />}

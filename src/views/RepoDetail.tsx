@@ -1,10 +1,11 @@
-import { CIBadge, Empty, Label, Progress, RepoIcon, Sparkline, Spinner, Stat } from "../components/bits";
+import { CIBadge, Empty, Progress, RepoIcon, Sparkline, Spinner, Stat } from "../components/bits";
 import { Icon, type IconName } from "../components/Icon";
 import { CategorySelect } from "../components/RepoCard";
 import { ago, commits30, isOverdue, num, repoProgress, shortDate } from "../lib/format";
 import { openUrl } from "../lib/platform";
 import { useRepoDetail } from "../lib/queries";
-import { href } from "../lib/router";
+import { href, navigate } from "../lib/router";
+import { ItemList } from "../components/ItemList";
 import { useApp } from "../lib/state";
 import { useState } from "react";
 
@@ -121,10 +122,10 @@ export function RepoDetail({ nameWithOwner, tab }: { nameWithOwner: string; tab:
       {tab === "overview" && (
         <div className="detail-grid">
           <div className="stats">
-            <Stat icon="issue" label="Open issues" value={repo.openIssues} sub={`${repo.closedIssues} closed`} />
-            <Stat icon="pr" label="Open PRs" value={repo.openPRs} sub={`${repo.mergedPRs} merged`} />
-            <Stat icon="activity" label="Commits · 30d" value={commits30(repo)} sub={d ? `${num(d.totalCommits)} total` : undefined} />
-            <Stat icon="star" label="Stars" value={num(repo.stars)} sub={`${repo.forks} forks`} />
+            <Stat icon="issue" label="Open issues" value={repo.openIssues} sub={`${repo.closedIssues} closed`} onClick={() => navigate(href.repo(nameWithOwner, "issues"))} />
+            <Stat icon="pr" label="Open PRs" value={repo.openPRs} sub={`${repo.mergedPRs} merged`} onClick={() => navigate(href.repo(nameWithOwner, "pulls"))} />
+            <Stat icon="activity" label="Commits · 30d" value={commits30(repo)} sub={d ? `${num(d.totalCommits)} total` : undefined} onClick={() => navigate(href.repo(nameWithOwner, "commits"))} />
+            <Stat icon="star" label="Stars" value={num(repo.stars)} sub={`${repo.forks} forks`} onClick={() => void openUrl(`${repo.url}/stargazers`)} />
           </div>
           <section className="card panel">
             <h3>Progress</h3>
@@ -150,9 +151,9 @@ export function RepoDetail({ nameWithOwner, tab }: { nameWithOwner: string; tab:
             <h3>Latest</h3>
             <ul className="kv">
               <li><span>Last push</span><span>{ago(repo.pushedAt)}</span></li>
-              <li><span>Last commit</span><span className="truncate">{repo.lastCommit?.message ?? "—"}</span></li>
+              <li><span>Last commit</span><span className="truncate">{repo.lastCommit ? <a href={href.repo(nameWithOwner, "commits")}>{repo.lastCommit.message}</a> : "—"}</span></li>
               <li><span>Release</span><span>{repo.latestRelease ? <Ext url={repo.latestRelease.url}>{repo.latestRelease.tag} · {ago(repo.latestRelease.publishedAt)}</Ext> : "—"}</span></li>
-              <li><span>Branch</span><span>{repo.defaultBranch ?? "—"}</span></li>
+              <li><span>Branch</span><span>{repo.defaultBranch ? <Ext url={`${repo.url}/tree/${repo.defaultBranch}`}>{repo.defaultBranch}</Ext> : "—"}</span></li>
               <li><span>Created</span><span>{shortDate(repo.createdAt)}</span></li>
             </ul>
             {d && d.languages.length > 0 && (
@@ -177,41 +178,16 @@ export function RepoDetail({ nameWithOwner, tab }: { nameWithOwner: string; tab:
       {tab !== "overview" && isLoading && <div className="center-fill"><Spinner /></div>}
 
       {d && tab === "issues" && (
-        d.issues.length ? (
-          <ul className="card list items">
-            {d.issues.map((i) => (
-              <li key={i.number}>
-                <Icon name="issue" className="ok-c" />
-                <div className="grow">
-                  <Ext url={i.url}><strong>{i.title}</strong></Ext>{" "}
-                  {i.labels.map((l) => <Label key={l.name} {...l} />)}
-                  <div className="small muted">#{i.number} opened {ago(i.createdAt)} by {i.author}{i.assignees.length ? ` · assigned ${i.assignees.join(", ")}` : ""}</div>
-                </div>
-                {i.comments > 0 && <span className="small muted row gap-s">{i.comments} comments</span>}
-              </li>
-            ))}
-          </ul>
-        ) : <Empty icon="check" title="No open issues" />
+        <div className="card panel">
+          <ItemList items={d.issues} showRepo={false} empty={<Empty icon="check" title="No open issues" />} />
+          {repo.openIssues > d.issues.length && <p className="muted small mt-s">Showing the {d.issues.length} most recently updated. <Ext url={`${repo.url}/issues`}>All {repo.openIssues} on GitHub</Ext></p>}
+        </div>
       )}
 
       {d && tab === "pulls" && (
-        d.pulls.length ? (
-          <ul className="card list items">
-            {d.pulls.map((p) => (
-              <li key={p.number}>
-                <Icon name="pr" className={p.isDraft ? "muted" : "ok-c"} />
-                <div className="grow">
-                  <Ext url={p.url}><strong>{p.title}</strong></Ext> {p.isDraft && <span className="chip tiny">draft</span>}
-                  <div className="small muted">
-                    #{p.number} by {p.author} · {ago(p.createdAt)} · <span className="add">+{p.additions}</span> <span className="del">−{p.deletions}</span>
-                    {p.review && ` · ${p.review.replace(/_/g, " ").toLowerCase()}`}
-                  </div>
-                </div>
-                <CIBadge state={p.checks} />
-              </li>
-            ))}
-          </ul>
-        ) : <Empty icon="pr" title="No open pull requests" />
+        <div className="card panel">
+          <ItemList items={d.pulls} showRepo={false} empty={<Empty icon="pr" title="No open pull requests" />} />
+        </div>
       )}
 
       {d && tab === "milestones" && (

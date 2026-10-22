@@ -39,7 +39,16 @@ export function useRepos() {
     queryFn: async () => {
       if (demo) return demoRepos();
       let lastPartial: RepoListResult | undefined;
-      const previous = qc.getQueryData<RepoListResult>(key);
+      // On startup the disk cache may not be in memory yet: read it here so the
+      // first sync is incremental (only changed repos are re-fetched).
+      let previous = qc.getQueryData<RepoListResult>(key);
+      if (!previous) {
+        const c = await kvGet<{ sig: string; data: RepoListResult }>("repos", CACHE_FILE).catch(() => undefined);
+        if (c?.sig === cacheSig && c.data?.viewer && Array.isArray(c.data.repos)) {
+          previous = c.data;
+          if (!qc.getQueryData(key)) qc.setQueryData(key, c.data, { updatedAt: 0 });
+        }
+      }
       try {
         const result = await fetchRepos(
           token!,

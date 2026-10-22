@@ -98,16 +98,29 @@ export function CIBadge({ state, label, failing }: { state: CheckState | string 
   );
 }
 
-export function Stat({ label, value, icon, tone, sub }: { label: string; value: string | number; icon: IconName; tone?: string; sub?: string }) {
-  return (
-    <div className={`stat${tone ? ` ${tone}` : ""}`}>
+export function Stat({ label, value, icon, tone, sub, onClick, active }: {
+  label: string; value: string | number; icon: IconName; tone?: string; sub?: string;
+  /** Makes the tile a toggle that opens details underneath. */
+  onClick?: () => void; active?: boolean;
+}) {
+  const cls = `stat${tone ? ` ${tone}` : ""}${onClick ? " clickable" : ""}${active ? " active" : ""}`;
+  const body = (
+    <>
       <div className="stat-label">
         <Icon name={icon} size={14} />
         {label}
+        {onClick && <Icon name="chevron" size={12} className="stat-chevron" />}
       </div>
       <div className="stat-value">{value}</div>
       {sub && <div className="stat-sub">{sub}</div>}
-    </div>
+    </>
+  );
+  return onClick ? (
+    <button type="button" className={cls} onClick={onClick} aria-expanded={!!active} title={active ? `Hide ${label.toLowerCase()} details` : `Show ${label.toLowerCase()} details`}>
+      {body}
+    </button>
+  ) : (
+    <div className={cls}>{body}</div>
   );
 }
 
@@ -130,5 +143,23 @@ export function Label({ name, color }: { name: string; color: string }) {
     <span className="label" style={{ background: `#${color}2e`, borderColor: `#${color}80` }}>
       {name}
     </span>
+  );
+}
+
+/** External link that opens in the system browser (inside Tauri) instead of the app window. */
+export function ExtLink({ url, children, className, title }: { url: string; children: React.ReactNode; className?: string; title?: string }) {
+  return (
+    <a
+      href={url}
+      className={className}
+      title={title}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        void import("../lib/platform").then(({ openUrl }) => openUrl(url));
+      }}
+    >
+      {children}
+    </a>
   );
 }
