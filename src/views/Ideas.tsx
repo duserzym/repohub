@@ -89,7 +89,7 @@ First plan.`,
 
 function usePad() {
   const { token, demo } = useApp();
-  const login = useRepos().data?.viewer.login;
+  const login = useRepos().data?.viewer?.login;
   return useQuery({
     queryKey: ["pad", demo ? "demo" : login],
     enabled: demo || (!!token && !!login),
@@ -103,7 +103,7 @@ function usePad() {
 
 export function Ideas({ slug }: { slug: string | null }) {
   const { token, demo } = useApp();
-  const login = useRepos().data?.viewer.login;
+  const login = useRepos().data?.viewer?.login;
   const qc = useQueryClient();
   const { data: pad, isLoading, error, refetch } = usePad();
   const [busy, setBusy] = useState<string | null>(null);

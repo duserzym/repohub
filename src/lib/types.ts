@@ -36,6 +36,8 @@ export interface Repo {
   defaultBranch: string | null;
   lastCommit: { oid: string; date: string; message: string } | null;
   ci: CheckState;
+  /** names of the checks whose latest run failed */
+  ciFailing?: string[];
   /** Commits per week, oldest → newest (12 weeks). */
   weekly: number[];
   /** Candidate icon files found in the repo tree, best first. */

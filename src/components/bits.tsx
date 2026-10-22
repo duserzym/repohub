@@ -8,20 +8,20 @@ import { Icon, type IconName } from "./Icon";
 export function RepoIcon({ repo, size = 40 }: { repo: Repo; size?: number }) {
   const { token, iconOverrides } = useApp();
   const override = iconOverrides[repo.nameWithOwner];
+  const viewer = useRepos().data?.viewer?.login;
   const [src, setSrc] = useState<string | null | undefined>(() => override ?? cachedIcon(repo));
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     if (override) return setSrc(override);
     let alive = true;
-    if (cachedIcon(repo) === undefined) resolveIcon(repo, token).then((u) => alive && setSrc(u));
+    if (cachedIcon(repo) === undefined) resolveIcon(repo, token, viewer).then((u) => alive && setSrc(u));
     else setSrc(cachedIcon(repo));
     return () => {
       alive = false;
     };
-  }, [repo.nameWithOwner, repo.iconPaths[0], override, token]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [repo.nameWithOwner, repo.iconPaths[0], override, token, viewer]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const viewer = useRepos().data?.viewer.login;
   const style = { width: size, height: size, borderRadius: size * 0.24 };
   // No icon in the repo: use the organisation's avatar for org repos (not your own face).
   if (src === null && !failed && repo.ownerAvatar && viewer && repo.owner.toLowerCase() !== viewer.toLowerCase())
@@ -87,10 +87,11 @@ const CI: Record<string, { icon: IconName; cls: string; label: string }> = {
 };
 const NONE = { icon: "minus" as IconName, cls: "none", label: "No CI" };
 
-export function CIBadge({ state, label }: { state: CheckState | string | null; label?: boolean }) {
+export function CIBadge({ state, label, failing }: { state: CheckState | string | null; label?: boolean; failing?: string[] }) {
   const s = (state && CI[String(state).toUpperCase()]) || NONE;
+  const title = failing?.length ? `CI failing: ${failing.join(", ")}` : `CI: ${s.label}`;
   return (
-    <span className={`ci ${s.cls}`} title={`CI: ${s.label}`} aria-label={`CI ${s.label}`}>
+    <span className={`ci ${s.cls}`} title={title} aria-label={title}>
       <span className="ci-dot"><Icon name={s.icon} size={10} /></span>
       {label && <span>{s.label}</span>}
     </span>

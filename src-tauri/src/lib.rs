@@ -13,6 +13,8 @@ use tauri::{Emitter, Manager, State};
 mod tray;
 #[cfg(desktop)]
 mod updater;
+#[cfg(desktop)]
+mod watchdog;
 
 /// iOS/Android: updates come from the store, so these are inert.
 #[cfg(mobile)]
@@ -111,6 +113,13 @@ fn get_tray_summary(state: State<'_, AppState>) -> Option<TraySummary> {
     state.summary.lock().ok().and_then(|s| s.clone())
 }
 
+/// The main window reports in while it has UI on screen (see src/lib/crash.ts).
+#[tauri::command]
+fn heartbeat() {
+    #[cfg(desktop)]
+    watchdog::beat();
+}
+
 #[tauri::command]
 fn show_main_window(app: tauri::AppHandle, route: Option<String>) {
     show_main(&app);
@@ -150,6 +159,7 @@ pub fn run() {
             update_tray,
             get_tray_summary,
             show_main_window,
+            heartbeat,
             updater::update_check,
             updater::update_download,
             updater::update_install,
@@ -158,6 +168,8 @@ pub fn run() {
         .setup(|app| {
             #[cfg(desktop)]
             tray::setup(app.handle())?;
+            #[cfg(desktop)]
+            watchdog::start();
             #[cfg(mobile)]
             let _ = app;
             Ok(())
@@ -165,11 +177,16 @@ pub fn run() {
         .on_window_event(|window, event| {
             // Closing the main window keeps RepoHub alive in the menu bar / tray.
             #[cfg(desktop)]
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main" {
+            match event {
+                tauri::WindowEvent::CloseRequested { api, .. } if window.label() == "main" => {
                     api.prevent_close();
                     let _ = window.hide();
                 }
+                // Coming back to a blank / dead window: reload it if it doesn't answer.
+                tauri::WindowEvent::Focused(true) if window.label() == "main" => {
+                    watchdog::on_focus(window.app_handle().clone());
+                }
+                _ => {}
             }
             #[cfg(mobile)]
             let _ = (window, event);

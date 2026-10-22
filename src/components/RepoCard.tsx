@@ -109,7 +109,7 @@ export function RepoCard({ repo }: { repo: Repo }) {
         <span title="Stars">
           <Icon name="star" size={13} /> {num(repo.stars)}
         </span>
-        <CIBadge state={repo.ci} />
+        <CIBadge state={repo.ci} failing={repo.ciFailing} />
         <span className="grow" />
         <span title={`${commits30(repo)} commits in the last 4 weeks`}>
           <Sparkline values={repo.weekly} width={64} height={20} />
@@ -150,7 +150,7 @@ export function RepoRow({ repo }: { repo: Repo }) {
       <span className="num" title="Open PRs">
         <Icon name="pr" size={13} /> {repo.openPRs}
       </span>
-      <CIBadge state={repo.ci} />
+      <CIBadge state={repo.ci} failing={repo.ciFailing} />
       <Sparkline values={repo.weekly} width={56} height={18} />
       <span className="muted small when">{ago(repo.pushedAt)}</span>
     </a>

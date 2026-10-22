@@ -24,7 +24,7 @@ export function TrayPopover() {
     if (!isTauri && new URLSearchParams(location.search).has("demo")) {
       // Browser preview: render the popover from demo data.
       const d = demoRepos();
-      setP({ summary: summarize(d.repos, DEFAULT_CATEGORIES, {}), fetchedAt: d.fetchedAt, login: d.viewer.login });
+      setP({ summary: summarize(d.repos, DEFAULT_CATEGORIES, {}), fetchedAt: d.fetchedAt, login: d.viewer?.login ?? "" });
     }
     invoke<Payload | null>("get_tray_summary").then((s) => s?.extra && setP(s.extra));
     const offs: (() => void)[] = [];

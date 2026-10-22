@@ -57,7 +57,7 @@ export function useRepos() {
           },
           previous,
         );
-        void kvSet("repos", { sig: cacheSig, data: result }, CACHE_FILE);
+        if (result.viewer) void kvSet("repos", { sig: cacheSig, data: result }, CACHE_FILE);
         return result;
       } catch (e) {
         if (e instanceof AuthError) {
@@ -81,7 +81,7 @@ export function useRepos() {
     if (demo || !token || q.data) return;
     let alive = true;
     kvGet<{ sig: string; data: RepoListResult }>("repos", CACHE_FILE).then((c) => {
-      if (alive && c?.sig === cacheSig && !qc.getQueryData(key)) qc.setQueryData(key, c.data, { updatedAt: 0 });
+      if (alive && c?.sig === cacheSig && c.data?.viewer && Array.isArray(c.data.repos) && !qc.getQueryData(key)) qc.setQueryData(key, c.data, { updatedAt: 0 });
     });
     return () => {
       alive = false;
@@ -116,8 +116,8 @@ export function useTraySync() {
   // Keep the menu-bar item in sync after every fetch.
   useEffect(() => {
     // Skip partial results so the menu bar never shows half-loaded numbers.
-    if (summary && data && !data.repos.some((r) => r.enriched === false))
-      void pushTray(summary, settings.menuBarStats, data.fetchedAt, data.viewer.login);
+    if (summary && data?.viewer && !data.repos.some((r) => r.enriched === false))
+      void pushTray(summary, settings.menuBarStats, data.fetchedAt, data.viewer?.login ?? "");
   }, [summary, data, settings.menuBarStats]);
 }
 

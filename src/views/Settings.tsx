@@ -5,6 +5,7 @@ import { ModeSwitch, ThemeGrid } from "../components/ThemePicker";
 import { clearIconMemory } from "../lib/icons";
 import { checkForUpdates, downloadUpdate, installUpdate, updatesSupported, useUpdateStatus } from "../lib/updater";
 import { isTauri } from "../lib/platform";
+import { clearCrashes, crashText, readCrashes } from "../lib/crash";
 import { clearRepoCache, useRepos } from "../lib/queries";
 import { DEFAULT_SETTINGS, useApp } from "../lib/state";
 import { menuBarTitle } from "../lib/summary";
@@ -114,7 +115,28 @@ export function Settings() {
           <button className="btn ghost" onClick={() => update("settings", { ...DEFAULT_SETTINGS, clientId: settings.clientId })}>Reset settings</button>
         </div>
       </section>
+
+      <Diagnostics />
     </div>
+  );
+}
+
+function Diagnostics() {
+  const [crashes, setCrashes] = useState(readCrashes);
+  if (!crashes.length) return null;
+  const last = crashes[0];
+  return (
+    <section className="card panel form">
+      <h3>Diagnostics</h3>
+      <p className="small muted">
+        {crashes.length} recent error{crashes.length > 1 ? "s" : ""} recovered automatically. Last: {new Date(last.at).toLocaleString()} in {last.where}.
+      </p>
+      <pre className="crash-msg">{last.message}</pre>
+      <div className="row gap wrap">
+        <button className="btn small" onClick={() => void navigator.clipboard?.writeText(crashes.map(crashText).join("\n\n"))}>Copy error details</button>
+        <button className="btn ghost small" onClick={() => { clearCrashes(); setCrashes([]); }}>Clear</button>
+      </div>
+    </section>
   );
 }
 

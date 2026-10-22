@@ -69,7 +69,7 @@ export async function rest<T>(token: string | null, path: string, accept?: strin
 
 export const WEEKS = 12;
 // Common places for a logo (fetched in the parallel detail phase, so cheap).
-const ICON_DIRS = ["", ".github", "assets", "docs", "images", "public", "img", "static"] as const;
+const ICON_DIRS = ["", ".github", "assets", "docs", "images", "public", "img", "static", "site"] as const;
 const WEEK_MS = 7 * 864e5;
 const treeAlias = (dir: string) => `tree_${dir.replace(/[^a-z]/gi, "") || "root"}`;
 
@@ -102,7 +102,14 @@ fragment RepoHeavy on Repository {
   }
   defaultBranchRef { name target { ... on Commit {
     oid committedDate messageHeadline
-    statusCheckRollup { state }
+    statusCheckRollup {
+      state
+      contexts(first: 60) { nodes {
+        __typename
+        ... on CheckRun { name status conclusion startedAt checkSuite { workflowRun { workflow { name } } } }
+        ... on StatusContext { context state createdAt }
+      } }
+    }
     recent: history(first: 100, since: $since) { totalCount nodes { committedDate } }
   } } }
   ${ICON_DIRS.map((d) => `${treeAlias(d)}: object(expression: "HEAD:${d}") { ... on Tree { entries { name type } } }`).join("\n  ")}
@@ -199,7 +206,7 @@ function mapRepo(n: any, tracked = false): Repo {
       : null,
     defaultBranch: n.defaultBranchRef?.name ?? null,
     lastCommit: c ? { oid: c.oid, date: c.committedDate, message: c.messageHeadline } : null,
-    ci: (c?.statusCheckRollup?.state ?? null) as CheckState,
+    ...ciFromRollup(c?.statusCheckRollup),
     weekly,
     iconPaths: rankIconFiles(files),
     socialImage: n.usesCustomOpenGraphImage ? n.openGraphImageUrl : null,
@@ -209,10 +216,48 @@ function mapRepo(n: any, tracked = false): Repo {
   };
 }
 
+/**
+ * CI state from the latest run of each check, instead of GitHub's rollup.
+ * GitHub's rollup turns red when an *older* run was cancelled (e.g. a deploy
+ * superseded by a newer one), even though every latest run passed.
+ */
+export function ciFromRollup(rollup: any): { ci: CheckState; ciFailing?: string[] } {
+  const nodes: any[] = rollup?.contexts?.nodes ?? [];
+  if (!rollup) return { ci: null };
+  if (!nodes.length) return { ci: (rollup.state ?? null) as CheckState };
+  const latest = new Map<string, { at: string; state: "ok" | "bad" | "run" | "ignore"; label: string }>();
+  for (const n of nodes) {
+    let key: string, at: string, state: "ok" | "bad" | "run" | "ignore", label: string;
+    if (n.__typename === "CheckRun") {
+      const wf = n.checkSuite?.workflowRun?.workflow?.name;
+      label = wf ? `${wf} / ${n.name}` : n.name;
+      key = label;
+      at = n.startedAt ?? "";
+      if (n.status !== "COMPLETED") state = "run";
+      else if (["FAILURE", "TIMED_OUT", "STARTUP_FAILURE", "ACTION_REQUIRED"].includes(n.conclusion)) state = "bad";
+      else if (n.conclusion === "SUCCESS") state = "ok";
+      else state = "ignore"; // CANCELLED, SKIPPED, NEUTRAL, STALE
+    } else {
+      label = key = n.context;
+      at = n.createdAt ?? "";
+      state = n.state === "SUCCESS" ? "ok" : n.state === "PENDING" || n.state === "EXPECTED" ? "run" : "bad";
+    }
+    const prev = latest.get(key);
+    // Keep the newest run; a cancelled/skipped run never replaces a real result.
+    if (!prev || (state !== "ignore" && (prev.state === "ignore" || at >= prev.at))) latest.set(key, { at, state, label });
+  }
+  const vals = [...latest.values()];
+  const failing = vals.filter((v) => v.state === "bad").map((v) => v.label);
+  if (failing.length) return { ci: "FAILURE", ciFailing: failing };
+  if (vals.some((v) => v.state === "run")) return { ci: "PENDING" };
+  if (vals.some((v) => v.state === "ok")) return { ci: "SUCCESS" };
+  return { ci: null };
+}
+
 /** Pick likely logo/icon files from a repo's top-level folders. */
 export function rankIconFiles(files: { path: string; dir: string; name: string }[]): string[] {
   const extScore: Record<string, number> = { png: 5, svg: 4, webp: 3, jpg: 2, jpeg: 2, ico: 1 };
-  const dirScore: Record<string, number> = { ".github": 4, "": 3, assets: 2, public: 1, docs: 0, images: 0, img: 0, static: 0 };
+  const dirScore: Record<string, number> = { ".github": 4, "": 3, assets: 2, public: 1, docs: 0, images: 0, img: 0, static: 0, site: 0 };
   const scored = files
     .map((f) => {
       const m = f.name.toLowerCase().match(/^(.*)\.(png|svg|webp|jpe?g|ico)$/);
@@ -243,7 +288,11 @@ export interface SyncStats {
   pageSize: number;
 }
 
+/** Bump when the detail fields change, so cached details are re-fetched once. */
+const DETAILS_SCHEMA = 2;
+
 export interface RepoListResult {
+  schema?: number;
   stats?: SyncStats;
   /** when every repo's details were last fetched (drives periodic full refresh) */
   fullDetailsAt?: string;
@@ -292,12 +341,13 @@ export async function fetchRepos(
   // Incremental refresh: unchanged repos keep their previous details, so a
   // refresh is usually a single cheap list request.
   const prevById = new Map((previous?.repos ?? []).map((r) => [r.id, r]));
-  const prevAge = previous ? Date.now() - new Date(previous.fullDetailsAt ?? previous.fetchedAt).getTime() : Infinity;
+  const prevAge =
+    previous && previous.schema === DETAILS_SCHEMA ? Date.now() - new Date(previous.fullDetailsAt ?? previous.fetchedAt).getTime() : Infinity;
   const reuse = new Map<string, Repo>();
   const fresh = (r: Repo): Repo => {
     const old = reuse.get(r.id);
     return old && !r.enriched
-      ? { ...r, milestones: old.milestones, lastCommit: old.lastCommit, ci: old.ci, weekly: old.weekly, iconPaths: old.iconPaths, defaultBranch: old.defaultBranch ?? r.defaultBranch, enriched: true }
+      ? { ...r, milestones: old.milestones, lastCommit: old.lastCommit, ci: old.ci, ciFailing: old.ciFailing, weekly: old.weekly, iconPaths: old.iconPaths, defaultBranch: old.defaultBranch ?? r.defaultBranch, enriched: true }
       : r;
   };
   let fullDetailsAt = previous?.fullDetailsAt ?? previous?.fetchedAt;
@@ -314,6 +364,7 @@ export async function fetchRepos(
       rateLimit,
       fetchedAt: new Date().toISOString(),
       fullDetailsAt,
+      schema: DETAILS_SCHEMA,
     };
   };
   const add = (n: any, tracked = false) => {
@@ -326,7 +377,9 @@ export async function fetchRepos(
   // ---- phase 1: the list (cheap, 100 per request) ----
   let cursor: string | null = null;
   let pageSize = Math.min(100, settings.maxRepos);
-  do {
+  // Note: a plain do/while with `continue` would jump to the loop condition and,
+  // on the first page (cursor still null), quit with no repos and no viewer.
+  for (;;) {
     let data: any;
     stats.requests++;
     try {
@@ -340,18 +393,20 @@ export async function fetchRepos(
       if (e instanceof SlowError && pageSize > 10) {
         stats.slowRetries++;
         pageSize = Math.max(10, Math.floor(pageSize / 2));
-        continue;
+        continue; // retry the same page, smaller
       }
       throw e;
     }
+    if (!data?.viewer?.repositories) throw new Error("GitHub returned an incomplete repository list");
     viewer = { login: data.viewer.login, name: data.viewer.name, avatarUrl: data.viewer.avatarUrl };
-    rateLimit = data.rateLimit;
+    rateLimit = data.rateLimit ?? rateLimit;
     const conn = data.viewer.repositories;
     totalCount = Math.min(conn.totalCount, settings.maxRepos);
     conn.nodes.forEach((n: any) => add(n));
     cursor = conn.pageInfo.hasNextPage ? conn.pageInfo.endCursor : null;
     onProgress?.(result(), { phase: "list", done: order.length, total: totalCount });
-  } while (cursor && order.length < settings.maxRepos);
+    if (!cursor || order.length >= settings.maxRepos) break;
+  }
 
   const own = new Set(order.map((id) => raw.get(id).nameWithOwner.toLowerCase()));
   const extra = trackedNames.filter((n) => !own.has(n.toLowerCase()));

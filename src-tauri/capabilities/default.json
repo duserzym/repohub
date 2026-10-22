@@ -2,7 +2,10 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Permissions for the main window and the menu-bar popover",
-  "windows": ["main", "tray"],
+  "windows": [
+    "main",
+    "tray"
+  ],
   "permissions": [
     "core:default",
     "core:window:allow-show",
@@ -12,17 +15,42 @@
     "opener:default",
     {
       "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "https://github.com/*" }, { "url": "https://*.github.com/*" }, { "url": "https://*" }]
+      "allow": [
+        {
+          "url": "https://github.com/*"
+        },
+        {
+          "url": "https://*.github.com/*"
+        },
+        {
+          "url": "https://*"
+        }
+      ]
     },
     {
       "identifier": "http:default",
       "allow": [
-        { "url": "https://api.github.com/*" },
-        { "url": "https://github.com/login/*" },
-        { "url": "https://raw.githubusercontent.com/*" },
-        { "url": "https://avatars.githubusercontent.com/*" },
-        { "url": "https://repository-images.githubusercontent.com/*" },
-        { "url": "https://opengraph.githubassets.com/*" }
+        {
+          "url": "https://api.github.com/*"
+        },
+        {
+          "url": "https://github.com/login/*"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/*"
+        },
+        {
+          "url": "https://avatars.githubusercontent.com/*"
+        },
+        {
+          "url": "https://repository-images.githubusercontent.com/*"
+        },
+        {
+          "url": "https://opengraph.githubassets.com/*"
+        },
+        {
+          "url": "https://*.github.io/*"
+        }
       ]
     }
   ]

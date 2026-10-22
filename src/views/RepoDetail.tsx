@@ -79,7 +79,7 @@ export function RepoDetail({ nameWithOwner, tab }: { nameWithOwner: string; tab:
             {repo.name}
             {repo.isPrivate && <span className="chip"><Icon name="lock" size={12} /> private</span>}
             {repo.isArchived && <span className="chip">archived</span>}
-            <CIBadge state={repo.ci} label />
+            <CIBadge state={repo.ci} label failing={repo.ciFailing} />
           </h1>
           <div className="muted">{repo.owner}</div>
           <p>{repo.description}</p>

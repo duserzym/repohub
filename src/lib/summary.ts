@@ -45,7 +45,11 @@ export function summarize(repos: Repo[], categories: Category[], assignments: Re
     if (failing) {
       failingCI++;
       c.failing++;
-      attention.push({ repo: r.nameWithOwner, kind: "ci", text: "CI failing on " + (r.defaultBranch ?? "default branch") });
+      attention.push({
+        repo: r.nameWithOwner,
+        kind: "ci",
+        text: r.ciFailing?.length ? `${r.ciFailing[0]}${r.ciFailing.length > 1 ? ` +${r.ciFailing.length - 1}` : ""} failing` : "CI failing on " + (r.defaultBranch ?? "default branch"),
+      });
     } else if (r.ci === "SUCCESS") passingCI++;
     for (const m of r.milestones)
       if (isOverdue(m.dueOn) && m.open > 0)

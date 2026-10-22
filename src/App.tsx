@@ -3,6 +3,7 @@ import { Spinner } from "./components/bits";
 import { Icon } from "./components/Icon";
 import { Login } from "./components/Login";
 import { Sidebar } from "./components/Sidebar";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { isTauri, listen } from "./lib/platform";
 import { applyMode, applyPalette } from "./lib/themes";
 import { useTraySync } from "./lib/queries";
@@ -51,16 +52,18 @@ function Shell() {
           <img src="/icon.svg" alt="" width={22} height={22} />
           <strong>RepoHub</strong>
         </div>
-        {route.view === "dashboard" && <Dashboard category={route.category} />}
-        {route.view === "repo" && <RepoDetail key={route.nameWithOwner} nameWithOwner={route.nameWithOwner} tab={route.tab} />}
-        {route.view === "discover" && <Discover />}
-        {route.view === "teams" && <Teams />}
-        {route.view === "ideas" && (
-          <Suspense fallback={<div className="center-fill"><Spinner /></div>}>
-            <Ideas slug={route.slug} />
-          </Suspense>
-        )}
-        {route.view === "settings" && <Settings />}
+        <ErrorBoundary where={`view:${route.view}`} resetKey={location.hash}>
+          {route.view === "dashboard" && <Dashboard category={route.category} />}
+          {route.view === "repo" && <RepoDetail key={route.nameWithOwner} nameWithOwner={route.nameWithOwner} tab={route.tab} />}
+          {route.view === "discover" && <Discover />}
+          {route.view === "teams" && <Teams />}
+          {route.view === "ideas" && (
+            <Suspense fallback={<div className="center-fill"><Spinner /></div>}>
+              <Ideas slug={route.slug} />
+            </Suspense>
+          )}
+          {route.view === "settings" && <Settings />}
+        </ErrorBoundary>
       </main>
     </div>
   );
